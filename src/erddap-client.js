@@ -65,6 +65,11 @@
 		this._datasets = {};
 	}
 
+	ErddapClient.fetchDataset = function(dataset_url){
+		let [erddap_url,dataset_id] = dataset_url.split(/\/info\//);
+		return new ErddapClient(erddap_url).getDataset(dataset_id).fetchMetadata();
+	}
+
 	const fetchJsonp = function(url, callbackName) {
 		let options = {};
 		if (callbackName) {
@@ -72,9 +77,11 @@
 		}
 		return jsonp(url, options);
 	}
+
 	ErddapClient.prototype.fetchAwesomeErddaps = function() {
 		return fetchJsonp("https://irishmarineinstitute.github.io/awesome-erddap/erddaps.jsonp", "awesomeErddapsCb");
 	}
+
 	ErddapClient.prototype.search = function(query, page, itemsPerPage) {
 		page = page || 1;
 		itemsPerPage = itemsPerPage || 10000;
@@ -83,14 +90,23 @@
 		urlParams.set("searchFor", query);
 		urlParams.set("page", page);
 		urlParams.set("itemsPerPage", itemsPerPage);
-		return fetchJsonp(url + urlParams.toString()).then(e2o);
+		return fetchJsonp(url + urlParams.toString()).then(e2o).then(datasets=>{
+			if(datasets){
+				datasets.forEach(dataset=>{
+					dataset.id = dataset["Dataset ID"];
+					dataset.url = this.base_url + "/info/" + dataset.id;
+				})
+
+			}
+			return datasets;
+		});
 	}
 
 	ErddapClient.prototype.listDatasets = function(filter) {
 		filter = filter || "NC_GLOBAL";
 		return this.search(filter).then(function(datasets) {
 			if (datasets && datasets.length) {
-				return datasets.map((ds) => ds["Dataset ID"]).sort();
+				return datasets.sort((a,b)=>a.id.localeCompare(b.id));
 			}
 			return [];
 		});
@@ -133,7 +149,7 @@
 			throw new Error("Unknown dataset: [" + dsid + "]");
 		}.bind(this)).then(function(summary) {
 			this._summary = summary;
-			var url = this.erddap.base_url + "/info/" + this.dataset_id + "/index.json";
+			var url = this.datasetUrl()+ "/index.json";
 			return fetchJsonp(url).then(function(response) { // TODO: handle error
 				var obj = {};
 				for (var i = 0; i < response.table.rows.length; i++) {
@@ -254,6 +270,10 @@
 		}.bind(this));
 
 	}
+	ErddapDataset.prototype.datasetUrl = function() {
+		return this.erddap.base_url + "/info/" + this.dataset_id;
+	}
+
 	ErddapDataset.prototype.variables = function() {
 		return this._meta.info.variable;
 	}
@@ -274,13 +294,14 @@
 	ErddapDataset.prototype.getDataUrl = function(formatExtension) {
 		return this.erddap.base_url + "/tabledap/" + this.dataset_id + formatExtension + "?"
 	}
+
 	ErddapDataset.prototype.fetchData = function(dap) {
 		var url = this.getDataUrl(".json") + dap;
 		return fetchJsonp(url)
 			.then(e2o);
 	}
 
-	ErddapClient.prototype.dataset = function(dsid) {
+	ErddapClient.prototype.getDataset = function(dsid) {
 		this._datasets[dsid] = this._datasets[dsid] || new ErddapDataset(this, dsid);
 		return this._datasets[dsid];
 	}

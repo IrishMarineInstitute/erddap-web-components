@@ -3,39 +3,29 @@
   <head>
     <meta charset="utf-8">
     <title>ERDDAP Web Components</title>
-    <link rel="stylesheet" href="style.css">
     <script src="src/erddap-client.js"></script>
     <script src="src/erddap-web-components.js"></script>
   </head>
   <body>
-    <h1>ERDDAP Web Components</h1>
-    <div class="example">
-        &lt;erddap-server-select 
-        value="https://erddap.marine.ie/erddap/"&gt;&lt;/erddap-server-select&gt;
-    </div>
-    <erddap-server-select 
-        value="https://erddap.marine.ie/erddap/"></erddap-server-select>
-    <div class="example">
-        &lt;erddap-dataset-select /&gt;
-    </div>
-    <erddap-dataset-select 
-        erddap-url="https://erddap.marine.ie/erddap/" 
-        dataset-id="" 
-        dataset-search-filter="tabledap">
-    </erddap-dataset-select>
-    <div class="example">
-        &lt;erddap-dataset-info-table 
-            erddap-url="https://erddap.marine.ie/erddap/" 
-            dataset-id="IMI-TidePrediction" &gt;
-        &lt;/erddap-dataset-info-table&gt;
-    </div>
-    <table>
-        <body>
-            <erddap-dataset-info-table 
-            erddap-url="https://erddap.marine.ie/erddap/" 
-            dataset-id="IMI-TidePrediction">
-            </erddap-dataset-info-table>
-        </body>
-    </table>
+        <h1>ERDDAP Web Components</h1>
+        <erddap-server-select id="ess1"
+            value="https://erddap.marine.ie/erddap/">
+        </erddap-server-select>
+        <erddap-dataset-select id="eds1"
+            erddap-server="https://erddap.marine.ie/erddap/" 
+            value="https://erddap.marine.ie/erddap/info/ais_met_hydro" 
+            dataset-search-filter="tabledap"
+            ></erddap-dataset-select>
+
+        <erddap-dataset-info-table id="edit1"></erddap-dataset-info-table>
+        <script>
+            document.getElementById("ess1").addEventListener('change',(e)=>{
+                document.getElementById("eds1").setAttribute("erddap-server",e.target.value);
+            });
+            function updateInfoTable(e){
+                document.getElementById("edit1").setAttribute("dataset-url",e.target.value)
+            }
+            document.getElementById("eds1").addEventListener('change',updateInfoTable);
+        </script>
   </body>
 </html>
