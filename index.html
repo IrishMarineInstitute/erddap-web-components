@@ -8,6 +8,7 @@
   </head>
   <body>
         <h1>ERDDAP Web Components</h1>
+        <!--
         <erddap-server-select id="ess1"
             value="https://erddap.marine.ie/erddap/">
         </erddap-server-select>
@@ -18,6 +19,8 @@
             ></erddap-dataset-select>
 
         <erddap-dataset-info-table id="edit1"></erddap-dataset-info-table>
+    -->
+        <erddap-multi-server-search></erddap-multi-server-search>
         <script>
             document.getElementById("ess1").addEventListener('change',(e)=>{
                 document.getElementById("eds1").setAttribute("erddap-server",e.target.value);
