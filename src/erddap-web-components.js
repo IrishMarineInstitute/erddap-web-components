@@ -8,13 +8,22 @@
  *
  */
 (function() {
+    const script_src = document.currentScript.getAttribute("src").replace(/[^\/]*$/, "");
     if (typeof(ErddapClient) === 'undefined') {
         console.log("erddap-client.js must be loaded before erddap-web-components.js");
     }
 
     const ss_fontawesome = "https://use.fontawesome.com/releases/v5.7.2/css/all.css";
     const ss_leaflet = "https://unpkg.com/leaflet@1.6.0/dist/leaflet.css";
-    const ss_bootstrap = "https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css";
+    const ss_bootstrap = "https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/css/bootstrap.min.css";
+    //const ss_bootstrap = "https://stackpath.bootstrapcdn.com/bootstrap/5.0.0-alpha1/css/bootstrap.min.css";
+    const ss_highlight = "https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@9.16.2/build/styles/default.min.css";
+
+    const js_papaparse = "https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.1.0/papaparse.min.js";
+    const js_markdownit = "https://cdn.jsdelivr.net/npm/markdown-it@10.0.0/dist/markdown-it.min.js";
+    const js_highlightjs = "https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@9.16.2/build/highlight.min.js";
+    const js_popper = "https://cdn.jsdelivr.net/npm/popper.js@1.16.0/dist/umd/popper.min.js";
+    const js_leaflet = "https://unpkg.com/leaflet@1.6.0/dist/leaflet.js";
 
     let mapId = 0;
     const ErddapTools = {
@@ -518,6 +527,61 @@
         link.setAttribute("href", href);
         return link;
     }
+    ShadowRoot.prototype.appendChildScript = function(src, inline) {
+        return new Promise((resolve, reject) => {
+            let el = document.createElement("script");
+            if (inline) {
+                el.textContent = src;
+            } else {
+                el.setAttribute("src", src);
+            }
+            el.onload = resolve;
+            el.onerror = reject;
+            this.appendChild(el);
+        })
+    }
+    ShadowRoot.prototype.appendChildScripts = function(scripts) {
+        let promises = scripts.map(src => this.appendChildScript(src));
+        return Promise.all(promises);
+    }
+
+    Element.prototype.activateTabs = function() {
+        let navlinks = this.querySelectorAll("ul.nav > li.nav-item > a.nav-link");
+        Object.keys(navlinks).map((tab) => {
+            navlinks[tab].addEventListener("click", (e) => {
+                let targetTab = e.currentTarget;
+                let curentPane = targetTab.closest('div').querySelectorAll("div.tab-content > div.tab-pane");
+                let tabs = targetTab.closest('ul').querySelectorAll("li.nav-item > a.nav-link");
+                let targetPane = targetTab.closest('div.tab-pane').querySelector(targetTab.getAttribute("href"));
+                if (!targetPane) {
+                    console.log(`did not find href ${targetTab.getAttribute("href")} for targetTab from div.tab_pane`, targetTab, targetTab.closest('div.tab-pane'))
+                }
+                //deactivate the panes
+                let pane = firstSibling(targetPane);
+                while (pane) {
+                    ["active", "show"].map(cl => pane.classList.remove(cl));
+                    pane = pane.nextElementSibling;
+                }
+                //deactivate the tabs
+                Object.keys(tabs).map((item) => {
+                    ["active", "show"].map(cl => tabs[item].classList.remove(cl));
+                });
+                //activate target pane and tab
+                ["active", "show"].map(cl => targetTab.classList.add(cl));
+                ["active", "show"].map(cl => targetPane.classList.add(cl));
+                e.preventDefault();
+            });
+        });
+
+        function firstSibling(e) {
+            while (e.previousElementSibling) {
+                e = e.previousElementSibling;
+            }
+            return e;
+
+        }
+    }
+
     class ErddapWebComponents extends HTMLElement {
         constructor() {
             super();
@@ -532,9 +596,7 @@
             container.setAttribute("class", "container");
             container.appendChild(slot);
             shadow.appendChild(container);
-            let script = document.createElement("script");
-            script.setAttribute("src", "https://unpkg.com/leaflet@1.6.0/dist/leaflet.js");
-            shadow.appendChild(script);
+            shadow.appendChildScript(js_leaflet);
         }
 
     }
@@ -623,7 +685,7 @@
 
         attributeChangedCallback(name, oldVal, newVal) {
             if (name === "value" && oldVal !== newVal) {
-                console.log("value changed");
+                //console.log("value changed");
             }
 
         }
@@ -743,11 +805,10 @@
             shadow.appendChild(stylesheet(ss_fontawesome));
             shadow.appendChild(stylesheet(ss_leaflet));
             shadow.appendChild(stylesheet(ss_bootstrap));
-            let script = document.createElement("script");
-            script.setAttribute("src", "https://unpkg.com/leaflet@1.6.0/dist/leaflet.js");
-            shadow.appendChild(script);
+            shadow.appendChildScript(js_leaflet);
             this.container = document.createElement("div");
             shadow.appendChild(this.container);
+            this.rendered = false;
         }
 
         render() {
@@ -755,7 +816,8 @@
             while (this.container.firstChild) {
                 this.container.removeChild(this.container.firstChild);
             }
-            if (dataset_url) {
+            if (dataset_url && dataset_url !== this.rendered) {
+                this.rendered = dataset_url;
                 ErddapClient.fetchDataset(dataset_url).then((dataset) => {
                     let table = document.createElement("table");
                     table.setAttribute("class", "table");
@@ -787,9 +849,7 @@
             shadow.appendChild(stylesheet(ss_fontawesome));
             shadow.appendChild(stylesheet(ss_leaflet));
             shadow.appendChild(stylesheet(ss_bootstrap));
-            let script = document.createElement("script");
-            script.setAttribute("src", "https://unpkg.com/leaflet@1.6.0/dist/leaflet.js");
-            shadow.appendChild(script);
+            shadow.appendChildScript(js_leaflet);
             this.elements = createSearchElements();
             this.container = this.elements.container;
             shadow.appendChild(this.container);
@@ -834,8 +894,8 @@
                     expand.innerText = "+";
                     expand.classList.add("btn");
                     expand.classList.add("btn-primary");
-                    expand.setAttribute("title","Click to show dataset details");
-                    expand.addEventListener("click", e=>{
+                    expand.setAttribute("title", "Click to show dataset details");
+                    expand.addEventListener("click", e => {
                         let idx = e.target.parentNode.rowIndex + 1;
                         if (expand.innerText == "-") {
                             table.deleteRow(idx);
@@ -844,16 +904,16 @@
                         }
                         let row = table.insertRow(idx);
                         expand.innerText = "-";
-                        let contents = td("...");
+                        let contents = td(""); //"...");
                         contents.setAttribute("colspan", 4);
                         row.appendChild(contents);
-                        ErddapClient.fetchDataset(o.url).then((dataset) => {
-                            let infotable = document.createElement("table");
-                            infotable.setAttribute("class", "table");
-                            contents.innerHTML = "";
-                            contents.appendChild(infotable);
-                            ErddapTools.metadataTable(dataset, infotable);
-                        })
+                        //let infotable = document.createElement('erddap-dataset-info-table');
+                        //infotable.setAttribute("dataset-url", o.url);
+                        //contents.appendChild(infotable);
+                        let tabs = document.createElement('erddap-dataset-tabs');
+                        tabs.setAttribute("dataset-url", o.url);
+                        contents.appendChild(tabs);
+                        e.preventDefault();
 
                     });
                 }
@@ -870,6 +930,9 @@
             table.appendChild(thead);
             let tr = document.createElement("tr");
             thead.appendChild(tr);
+            while (this.elements.searchResults.firstChild) {
+                this.elements.searchResults.removeChild(this.elements.searchResults.firstChild);
+            }
             this.elements.searchResults.appendChild(table);
             let th = function(text) {
                 let el = document.createElement("th");
@@ -918,4 +981,170 @@
         }
     }
     window.customElements.define('erddap-multi-server-search', ErddapMultiServerSearch);
+
+    class ErddapDatasetAPI extends HTMLElement {
+        static observedAttributes = ["dataset-url"];
+        constructor() {
+            super();
+            let shadow = this.attachShadow({
+                mode: 'open'
+            });
+            this.shadow = shadow;
+            shadow.appendChild(stylesheet(ss_fontawesome));
+            shadow.appendChild(stylesheet(ss_bootstrap));
+            shadow.appendChild(stylesheet(ss_highlight));
+            this.container = document.createElement("div");
+            shadow.appendChild(this.container);
+            this.rendered = false;
+
+            let scripts = [js_papaparse, js_markdownit, js_highlightjs, js_popper, `${script_src}zapidox.js?${new Date().getTime()}`];
+            shadow.appendChildScripts(scripts).then(() => this.render());
+
+        }
+
+        render() {
+            if (this.rendered) {
+                return;
+            }
+            if (typeof(Zapidox) === "undefined") {
+                return;
+            }
+            var dataset_url = this.getAttribute("dataset-url");
+            while (this.container.firstChild) {
+                this.container.removeChild(this.container.firstChild);
+            }
+            if (dataset_url) {
+                this.container.innerHTML = "<p class='lead'>loading developer documentation</p>";
+                Zapidox.generate(dataset_url).then(apidox => {
+                    while (this.container.firstChild) {
+                        this.container.removeChild(this.container.firstChild);
+                    }
+                    this.container.append(apidox);
+                    apidox.activateTabs();
+                });
+                this.rendered = true;
+            }
+        }
+        connectedCallback() {
+            this.render();
+        }
+
+        disconnectedCallback() {}
+
+        attributeChangedCallback(name, oldVal, newVal) {
+            if (name === "dataset-url" && oldVal !== newVal) {
+                this.rendered = false;
+                this.render();
+            }
+
+        }
+    }
+    window.customElements.define('erddap-dataset-api', ErddapDatasetAPI);
+    /**
+     * Tabs to switch between general view and developer view (zapidox)
+     */
+    class ErddapDatasetTabs extends HTMLElement {
+        static observedAttributes = ["dataset-url"];
+        constructor() {
+            super();
+            let shadow = this.attachShadow({
+                mode: 'open'
+            });
+            this.shadow = shadow;
+            shadow.appendChild(stylesheet(ss_bootstrap));
+            this.container = document.createElement("div");
+            shadow.appendChild(this.container);
+            this.rendered = false;
+        }
+
+        render() {
+            if (this.rendered) {
+                return;
+            }
+            var dataset_url = this.getAttribute("dataset-url");
+            while (this.container.firstChild) {
+                this.container.removeChild(this.container.firstChild);
+            }
+            if (dataset_url) {
+                this.rendered = true;
+                let el = this.createErddapDatasetTabsElement(dataset_url);
+                el.activateTabs();
+                this.container.append(el);
+            }
+        }
+        connectedCallback() {
+            this.render();
+        }
+
+        disconnectedCallback() {}
+
+        attributeChangedCallback(name, oldVal, newVal) {
+            if (name === "dataset-url" && oldVal !== newVal) {
+                this.rendered = false;
+                this.render();
+            }
+
+        }
+
+        createErddapDatasetTabsElement(dataset_url) {
+            let link = dataset_url.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/[-]+/g, '-');
+            let div = document.createElement("div");
+            div.setAttribute("class", "tab-pane");
+            let ul = document.createElement("ul");
+            ul.setAttribute("class", "nav nav-tabs");
+            ul.setAttribute("role", "tablist");
+            let li = document.createElement("li");
+            li.setAttribute("class", "nav-item");
+            li.setAttribute("role", "presentation");
+            let a = document.createElement("a");
+            a.setAttribute("class", "nav-link active");
+            a.setAttribute("data-toggle", "tab");
+            a.setAttribute("href", `#${link}-docs`);
+            a.setAttribute("role", "tab");
+            a.setAttribute("aria-controls", "home");
+            a.setAttribute("aria-selected", "true");
+            a.appendChild(document.createTextNode("Info"));
+            li.appendChild(a)
+            ul.appendChild(li)
+            let li1 = document.createElement("li");
+            li1.setAttribute("class", "nav-item");
+            li1.setAttribute("role", "presentation");
+            let a1 = document.createElement("a");
+            a1.setAttribute("class", "nav-link");
+            a1.setAttribute("data-toggle", "tab");
+            a1.setAttribute("href", `#${link}-api`);
+            a1.setAttribute("role", "tab");
+            a1.setAttribute("aria-controls", "profile");
+            a1.setAttribute("aria-selected", "false");
+            a1.appendChild(document.createTextNode("API"));
+            li1.appendChild(a1)
+            ul.appendChild(li1)
+            div.appendChild(ul)
+            let datasetContent = document.createElement("div");
+            datasetContent.setAttribute("class", "tab-content");
+            datasetContent.setAttribute("id", "datasetContent");
+            let datasetDocs = document.createElement("div");
+            datasetDocs.setAttribute("class", "tab-pane fade show active");
+            datasetDocs.setAttribute("id", `${link}-docs`);
+            datasetDocs.setAttribute("role", "tabpanel");
+            datasetDocs.setAttribute("aria-labelledby", "home-tab");
+            let datasetInfoTable = document.createElement("erddap-dataset-info-table");
+            datasetInfoTable.setAttribute("dataset-url", dataset_url);
+            datasetDocs.appendChild(datasetInfoTable)
+            datasetContent.appendChild(datasetDocs)
+            let datasetApi = document.createElement("div");
+            datasetApi.setAttribute("class", "tab-pane fade");
+            datasetApi.setAttribute("id", `${link}-api`);
+            datasetApi.setAttribute("role", "tabpanel");
+            datasetApi.setAttribute("aria-labelledby", "profile-tab");
+            let datasetApiDocs = document.createElement("erddap-dataset-api");
+            datasetApiDocs.setAttribute("dataset-url", dataset_url);
+            datasetApi.appendChild(datasetApiDocs)
+            datasetContent.appendChild(datasetApi)
+
+            div.appendChild(datasetContent)
+            return div;
+        }
+    }
+    window.customElements.define('erddap-dataset-tabs', ErddapDatasetTabs);
 })();

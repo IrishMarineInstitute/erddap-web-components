@@ -17,8 +17,22 @@
 	let jsonpID = 0;
 	var awesomeErddaps;
 
-	function jsonp(url, options) {
+	
+
+	var ErddapClient = function(settings) {
+		if(typeof(settings) === "string"){
+			settings = {url: settings};
+		}
+		this.settings = settings || {};
+		settings.url = settings.url || "https://coastwatch.pfeg.noaa.gov/erddap/";
+		this.endpoint = settings.url.replace(/\/+$/, "");
+		this.disabledkey = this.endpoint + ".disabled";
+		this.settings.disabled = localStorage.getItem(this.disabledkey) ? true : false;
+		this._datasets = {};
+	}
+	ErddapClient.fetchJsonp = function(url, options) {
 		// derived from https://blog.logrocket.com/jsonp-demystified-what-it-is-and-why-it-exists/
+		options = options || {};
 		let head = document.querySelector('head');
 		let timeout = options.timeout || 7500;
 		let callbackName = options.callbackName || `jsonpCallback${jsonpID}`;
@@ -59,19 +73,10 @@
 			head.appendChild(script);
 		});
 	}
-
-	var ErddapClient = function(settings) {
-		this.settings = settings || {};
-		settings.url = settings.url || "https://coastwatch.pfeg.noaa.gov/erddap/";
-		this.endpoint = settings.url.replace(/\/+$/, "");
-		this.disabledkey = this.endpoint + ".disabled";
-		this.settings.disabled = localStorage.getItem(this.disabledkey) ? true : false;
-		this._datasets = {};
-	}
 	ErddapClient.fetchAwesomeErddaps = () => {
 		if(!awesomeErddaps){
-			awesomeErddaps = fetchJsonp("https://irishmarineinstitute.github.io/awesome-erddap/erddaps.jsonp", 
-			"awesomeErddapsCb");
+			awesomeErddaps = ErddapClient.fetchJsonp("https://irishmarineinstitute.github.io/awesome-erddap/erddaps.jsonp", 
+			{callbackName: "awesomeErddapsCb"});
 		}
 		return awesomeErddaps.then(results=>JSON.parse(JSON.stringify(results)));
 	}
@@ -83,14 +88,6 @@
 		}).getDataset(dataset_id).fetchMetadata();
 	}
 
-	const fetchJsonp = function(url, callbackName) {
-		let options = {};
-		if (callbackName) {
-			options.callbackName = callbackName;
-		}
-		return jsonp(url, options);
-	}
-
 	ErddapClient.prototype.search = function(query, page, itemsPerPage) {
 		page = page || 1;
 		itemsPerPage = itemsPerPage || 10000;
@@ -99,7 +96,7 @@
 		urlParams.set("searchFor", query);
 		urlParams.set("page", page);
 		urlParams.set("itemsPerPage", itemsPerPage);
-		return fetchJsonp(url + urlParams.toString()).then(e2o).then(datasets => {
+		return ErddapClient.fetchJsonp(url + urlParams.toString()).then(e2o).then(datasets => {
 			if (datasets) {
 				datasets.forEach(dataset => {
 					dataset.id = dataset["Dataset ID"];
@@ -173,7 +170,7 @@
 		}).then((summary) => {
 			this._summary = summary;
 			var url = this.datasetUrl() + "/index.json";
-			return fetchJsonp(url).then(response => { // TODO: handle error
+			return ErddapClient.fetchJsonp(url).then(response => { // TODO: handle error
 				var obj = {};
 				for (var i = 0; i < response.table.rows.length; i++) {
 					var row = response.table.rows[i];
@@ -320,7 +317,7 @@
 
 	ErddapDataset.prototype.fetchData = function(dap) {
 		var url = this.getDataUrl(".json") + dap;
-		return fetchJsonp(url)
+		return ErddapClient.fetchJsonp(url)
 			.then(e2o);
 	}
 

@@ -19,8 +19,10 @@
             ></erddap-dataset-select>
 
         <erddap-dataset-info-table id="edit1"></erddap-dataset-info-table>
+    <erddap-dataset-api dataset-url="https://erddap.marine.ie/erddap/info/IMI-WaveBuoyForecast"></erddap-dataset-api>
     -->
         <erddap-multi-server-search></erddap-multi-server-search>
+    <!--
         <script>
             document.getElementById("ess1").addEventListener('change',(e)=>{
                 document.getElementById("eds1").setAttribute("erddap-server",e.target.value);
@@ -30,5 +32,7 @@
             }
             document.getElementById("eds1").addEventListener('change',updateInfoTable);
         </script>
+    -->
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/5.0.0-alpha1/js/bootstrap.min.js"></script>
   </body>
 </html>
