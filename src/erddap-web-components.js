@@ -252,7 +252,6 @@
     }
 
     function createSearchElements() {
-        let div = document.createElement("div");
         let div1 = document.createElement("div");
         div1.setAttribute("class", "container");
         let searchArea = document.createElement("div");
@@ -448,7 +447,6 @@
         form.appendChild(div5);
         addServerForm.appendChild(form);
         div1.appendChild(addServerForm);
-        div.appendChild(div1);
 
         showSettingsLink.addEventListener("click", () => {
             searchArea.style.display = "none";
@@ -470,7 +468,7 @@
         });
         cancelAddNewServerButtion.addEventListener("click", hideAddServerForm);
 
-        let filterServers = function() {
+        let filterServers = ()=>{
             var table = document.getElementById("settingsTable");
             if (table) {
                 var filters = document.getElementById("filter").value.split(/\s+/).map(function(t) {
@@ -510,7 +508,7 @@
         });
 
         return {
-            container: div,
+            container: div1,
             testConnections: testConnections,
             searchForm: searchForm,
             searchDatasetsButton: searchDatasetsButton,
@@ -593,7 +591,7 @@
             shadow.appendChild(stylesheet(ss_bootstrap));
             let slot = document.createElement("slot");
             let container = document.createElement("div");
-            container.setAttribute("class", "container");
+            //container.setAttribute("class", "container");
             container.appendChild(slot);
             shadow.appendChild(container);
             shadow.appendChildScript(js_leaflet);
@@ -993,6 +991,14 @@
             shadow.appendChild(stylesheet(ss_fontawesome));
             shadow.appendChild(stylesheet(ss_bootstrap));
             shadow.appendChild(stylesheet(ss_highlight));
+            let style = document.createElement("style");
+            style.setAttribute("type","text/css");
+            style.innerText = `
+            pre.hljs {
+                overflow: auto;
+            }
+            `;
+            shadow.appendChild(style);
             this.container = document.createElement("div");
             shadow.appendChild(this.container);
             this.rendered = false;
@@ -1089,7 +1095,7 @@
         createErddapDatasetTabsElement(dataset_url) {
             let link = dataset_url.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/[-]+/g, '-');
             let div = document.createElement("div");
-            div.setAttribute("class", "tab-pane");
+            div.setAttribute("class", "tab-pane container");
             let ul = document.createElement("ul");
             ul.setAttribute("class", "nav nav-tabs");
             ul.setAttribute("role", "tablist");
