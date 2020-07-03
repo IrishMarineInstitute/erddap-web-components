@@ -14,7 +14,7 @@
 }(this, (function() {
     'use strict';
 
-    var Zapidox = function(){
+    var Zapidox = function() {
 
         let parseErddapUrl = (query_url) => {
             var erddap_url = new URL(query_url.replace(/\/(((table|grid)dap)|info).*$/g, "/")).toString();
@@ -75,106 +75,47 @@
             return zapidox;
         }
         let generateAPIDocs = (erddap, dataset_id, options) => {
-            options = options || {
-                bootstrap4: false
-            }; // use markdown-it to translate to html.
-            if (options.tableInTitle === undefined) {
-                options.tableInTitle = options.bootstrap4 ? false : true;
-            }
-            if (!options.format) {
-
-                options.format = (docs) => {
-                    return docs;
-                }
-                if (typeof(markdownit) !== "undefined" && options.bootstrap4) {
-                    var mdoptions = {
-                        html: true,
-                        linkify: true
-                    };
-                    if (window.hljs) {
-                        mdoptions.highlight = (str, lang) => {
-                            if (lang && hljs.getLanguage(lang)) {
-                                try {
-                                    return '<pre class="hljs"><code>' +
-                                        hljs.highlight(lang, str, true).value +
-                                        '</code></pre>';
-                                } catch (__) {}
-                            }
-
-                            return '<pre class="hljs"><code>' + md.utils.escapeHtml(str) + '</code></pre>';
-                        }
-                    };
-                    var md = window.markdownit(mdoptions);
-                    md.renderer.rules.table_open = (tokens, idx) => {
-                        return '<table class="table table-sm">';
-                    };
-                    options.format = (docs) => {
-                        return md.render(docs);
-                    }
-                }
-            }
+            options = options || {}; // use markdown-it to translate to html.
             return new Promise((resolve, reject) => {
                 var ds = erddap.getDataset(dataset_id);
                 ds.fetchMetadata().then((meta) => {
                     let dataset_type = ds._summary.tabledap ? "tabledap" : (ds._summary.griddap ? "griddap" : (ds._summary.wms ? "wms" : "unknown"));
                     var dataset_link = getDatasetLink(erddap.endpoint, dataset_id, dataset_type);
-                    var joinParts = (toc, parts) => {
-                        if (toc.length && options.bootstrap4) {
-                            var id = dataset_link + "|--overview";
-                            toc.unshift("<p><a href='#" + id + "'>Overview</a></p>");
-                            var body = parts.join("\n\n");
-                            return [
-                                '<div class="row">',
-                                '<div class="col-sm-2 bg-light">',
-                                '<div class="sticky-top">',
-                                toc.join("\n"),
-                                '</div>',
-                                '</div>',
-                                '<div class="col-sm-10">',
-                                '',
-                                body,
-                                '</div>',
-                                '</div>'
-                            ].join("\n");
-                        }
-                        return parts.join("\n\n");
-                    }
                     var toc = [];
                     var ncglobal = meta.info.attribute["NC_GLOBAL"];
                     var overview = getOverview(ncglobal, dataset_link, options, dataset_type);
-                    var exampleQuerySection = [
-                        "# Example Queries",
-                        "", "Below are some example queries to get you started with " + ncglobal.title.value
-                    ].join("\n")
-                    var dimensions = "";
+                    let exampleQuerySection = document.createElement("div");
+                    exampleQuerySection.appendChild(createElement("h2", {}, "Example Queries"));
+                    exampleQuerySection.appendChild(createElement("p", {},
+                        "Below are some example queries to get you started with " + ncglobal.title.value));
+
+                    let dimensions = document.createElement("div");
                     if (dataset_type === "griddap") {
                         dimensions = getVariablesTable(meta, "dimension", dataset_id, options, toc, dataset_link);
-                        exampleQuerySection = "";
+                        exampleQuerySection = document.createElement("div");
                     }
-                    var variables = getVariablesTable(meta, "variable", dataset_id, options, toc, dataset_link);
+                    let variables = getVariablesTable(meta, "variable", dataset_id, options, toc, dataset_link);
 
-                    var parts = [overview, dimensions, variables, exampleQuerySection];
-                    var zapidox = options.zapidox || _getMetaZapidocs(meta);
+                    let parts = createElement("div", {
+                        id: "parts"
+                    })
+                    parts.appendChild(overview);
+                    parts.appendChild(dimensions);
+                    parts.appendChild(variables);
+                    parts.appendChild(exampleQuerySection);
+
+                    let zapidox = options.zapidox || _getMetaZapidocs(meta);
                     if (dataset_type === "tabledap" && typeof(zapidox) == "object") {
                         if (options.example && zapidox.unshift) {
                             zapidox.unshift(options.example)
                         }
-                        var docs = [];
-                        var generateZDocs = (method) => {
-                            generateMethodDocs(ds, method, options, toc, dataset_link).then((result) => {
-                                parts.push(result);
-                                if (zapidox.length) {
-                                    generateZDocs(zapidox.shift());
-                                } else {
-                                    resolve(joinParts(toc, parts));
-                                }
-                            });
-
-                        }
-                        generateZDocs(zapidox.shift());
-                    } else {
-                        resolve(joinParts(toc, parts));
+                        zapidox.map(method => {
+                            let methodDocs = generateMethodDocs(ds, method, options, toc, dataset_link);
+                            parts.appendChild(methodDocs);
+                        });
                     }
+                    resolve(parts);
+
                 });
             });
         }
@@ -234,7 +175,7 @@
         let getRFunction = (url, params) => {
             var output = [];
             output.push("require(httr)");
-            var options = [],
+            let options = [],
                 args = {};
             params.forEach(o => {
                 if (typeof(o) == 'string') {
@@ -327,191 +268,179 @@
                     console.log("problem processing", url, e);
                 });
         }
+        let createElement = (name, attrs, text) => {
+            let el = document.createElement(name);
+            if (attrs) {
+                Object.keys(attrs).map(attr => {
+                    el.setAttribute(attr, attrs[attr]);
+                });
+            }
+            if (text) {
+                el.innerText = text;
+            }
+            return el;
+        }
         let generateMethodDocs = (dataset, method, options, toc, dataset_link) => {
             let getFormatName = (f) => f.replace(/^\./, "");
-            return new Promise((resolve, reject) => {
-                var formats = method.formats || [".csv0", ".jsonlKVP"]
-                var output = [];
-                var generateFormatMethodDocs = (format) => {
-                    format = format || "";
-                    var outputformat = {}[format] || format.replace(/^[^a-zA-Z]/g, "").replace(/[^a-zA-Z]$/g, "");
-                    var base_url = dataset._summary.tabledap || dataset._summary.griddap;
-                    var formatNoExtension = getFormatName(format);
-                    var partial_url = base_url + "." + formatNoExtension
-                    var full_url = partial_url + "?" + method.query;
-
-                    var params = [];
-                    if (full_url.startsWith("//")) {
-                        full_url = location.protocol + full_url;
-                    }
-                    var searchParams = full_url.toLowerCase().startsWith("http") ? new URL(full_url).searchParams : new URL(full_url, dataset.erddap.endpoint).searchParams;
-                    searchParams.forEach((i, k) => {
-                        if (searchParams.get(k).length || method.query.indexOf(k + "=") >= 0 || method.query.indexOf(encodeURIComponent(k) + "=") >= 0) {
-                            var param = {};
-                            param[k] = searchParams.get(k);
-                            params.push(param);
-                        } else {
-                            params.push(k);
-                        }
-                    });
-
-                    var section_prefix = dataset_link + "|" + (dataset.dataset_id + "-" + method.name).replace(/\W/, '-').replace(/--/g, '-').toLowerCase();
-                    let getIdPrefix = (f) => (method.name + "-" + getFormatName(f)).replace(/\W/, '-').replace(/--/g, '-').toLowerCase();
-                    let id_prefix = getIdPrefix(format);
-                    method.hash = '#' + section_prefix;
-
-                    output.push("");
-                    var formatSelected = false;
-                    if (options.tableInTitle) {
-                        output.push(["## ", dataset.dataset_id, ": ", method.name, " (", formatNoExtension, ")"].join(""));
-                    } else {
-                        if (options.bootstrap4) {
-                            var title = ["<p>", '<a href="#', section_prefix, '">', method.name, "</a></p>"].join("");
-                            if (toc.indexOf(title) < 0) {
-                                toc.push(title);
-                                formatSelected = true;
-                                output.push(['<h2 id="' + section_prefix + '">', method.name, "</h2>"].join(""));
-                                output.push("<div class='tab-pane container'>");
-                                output.push('<ul class="nav nav-tabs">');
-                                output.push('<li class="nav-item"><a class="nav-link active show" data-toggle="tab" href="#' + id_prefix + '">' + formatNoExtension + '</a></li>');
-                                for (var x = 0; x < formats.length; x++) {
-                                    output.push('<li class="nav-item"><a class="nav-link" data-toggle="tab" href="#' + getIdPrefix(formats[x]) + '">' + getFormatName(formats[x]) + '</a></li>');
-                                }
-                                output.push('</ul>');
-                                output.push('<div class="tab-content">');
-                            }
-
-                            output.push('<div id="' + id_prefix + '" class="tab-pane container ' + (formatSelected ? "active show" : "fade") + '">');
-                            output.push('<div class="row"><div >');
-                        } else {
-                            output.push("## " + method.name + " (" + formatNoExtension + ")");
-                        }
-                    }
-                    output.push("");
-                    output.push(method.description);
-                    output.push("");
-
-                    var getBeforeCode = (lang) => {
-                        return "\n```" + lang
-                    };
-                    var getAfterCode = () => {
-                        return "```"
-                    };
-                    var output_end = "";
-
-                    if (options.bootstrap4) {
-                        output_end = "</div></div></div>";
-                        output.push("\n");
-                        output.push('</div><div class="row">');
-                        output.push('<ul class="nav nav-pills mb-5" id="pills-' + id_prefix + '-tab" role="tablist">');
-                        var langSelected = true;
-                        ["shell", "python", "r", "javascript", "csharp"].forEach((lang) => {
-                            var fix = (id_prefix + '-' + lang).replace(/[^\w\-\d_]/g, '-');
-                            output.push('<li class="nav-item">');
-                            output.push('<a class="codetab nav-link' + (langSelected ? " active show " : " ") +
-                                lang + '-lang" id="pills-' + fix + '-tab" data-lang=".' +
-                                lang + '-lang" data-toggle="pill" href="#pills-' +
-                                fix + '" role="tab" aria-controls="pills-' +
-                                fix + '" aria-selected="' + langSelected + '">' +
-                                lang + '</a>')
-                            output.push('</li>');
-                            langSelected = false;
-                        });
-                        output.push("</ul>");
-                        output.push("<div class='row'></div>");
-                        output.push('<div class="tab-content" id="pills-' + id_prefix + '-tabContent">');
-                        getBeforeCode = (lang, active) => {
-                            var fix = (id_prefix + '-' + lang).replace(/[^\w\-\d_]/g, '-');
-                            return '<div class="tab-pane fade' + (active ? " show active" : "") + '" id="pills-' +
-                                fix + '" role="tabpanel" aria-labelledby="pills-' + fix + '-tab">\n\n```' + lang;
-                        }
-                        getAfterCode = () => {
-                            return "```\n\n</div>"
-                        };
-                    }
-
-                    output.push(getBeforeCode("shell", true));
-                    output.push("curl '" + full_url.replace(/'/, "\\'") + "'")
-                    output.push(getAfterCode());
-                    output.push(getBeforeCode("python"));
-                    output.push(getPythonFunction(partial_url, params, method.query, format))
-                    output.push(getAfterCode());
-                    output.push(getBeforeCode("r"));
-                    output.push(getRFunction(partial_url, params, method.query))
-                    output.push(getAfterCode());
-                    output.push(getBeforeCode("javascript"));
-                    output.push(getJavascriptFunction(partial_url, params))
-                    output.push(getAfterCode());
-                    output.push(getBeforeCode("csharp"));
-                    output.push("// csharp code coming soon....(ish)")
-                    output.push(getAfterCode());
-
-                    var queryResultToMarkdown = (result) => {
-                        var o = [];
-                        o.push("* The above commands return " + outputformat.toUpperCase() + " structured like this:");
-                        o.push("");
-                        o.push("```" + outputformat);
-                        o.push(result);
-                        o.push("```");
-                        return o.join("\n");
-                    }
-
-                    var continueOrResolve = (result) => {
-                        if (result) {
-                            output.push(queryResultToMarkdown(result));
-                        }
-                        output.push(output_end);
-                        if (formats.length) {
-                            generateFormatMethodDocs(formats.shift());
-                        } else {
-                            if (options.bootstrap4) {
-                                output.push("</div></div>");
-                            }
-                            resolve(output.join("\n"));
-                        }
-                    }
-                    if (options.bootstrap4) {
-                        output.push("</div>\n");
-                        // in case of generating html in the browser,
-                        // the output code examples are added after.
-                        let output_id = id_prefix + '-output';
-                        output.push('<div id="' + output_id + '">(fetching output)</div>');
-                        continueOrResolve();
-                        getQueryOutput(partial_url, params).then(queryOutput => {
-                            let tries_remaining = 50;
-                            let writeOutputFn = () => {
-                                let el = document.getElementById(output_id) ||
-                                    (this.shadowRoot && this.shadowRoot.getElementById(output_id));
-                                if (el) {
-                                    el.innerHTML = options.format(queryResultToMarkdown(queryOutput));
-                                } else if (--tries_remaining) {
-                                    //console.log(`trying ${tries_remaining} for ${output_id}`)
-                                    setTimeout(writeOutputFn, 200);
-                                }else{
-                                   // console.log(output_id,this);
-                                }
-                            }
-                            writeOutputFn = writeOutputFn.bind(this);
-                            setTimeout(writeOutputFn, 0);
-                            return;
-
-                        }, (e) => {
-                            console.log("todo log error");
-                            return;
-                            document.getElementById(output_id).innerHTML =
-                                options.format(queryResultToMarkdown("sorry the request failed, an example is not available at this time."));
-                        });
-                    } else {
-                        getQueryOutput(partial_url, params).then(queryOutput => {
-                            continueOrResolve(queryOutput);
-                        }, (e) => {
-                            continueOrResolve("sorry the request failed, an example is not available at this time.");
-                        });
-                    }
-
-                }
-                generateFormatMethodDocs(formats.shift());
+            let formats = method.formats || [".csv0", ".jsonlKVP"]
+            let section_prefix = dataset_link + "|" + (dataset.dataset_id + "-" + method.name).replace(/\W/, '-').replace(/--/g, '-').toLowerCase();
+            let output = document.createElement('div',{class: "container-fluid"});
+            output.appendChild(createElement("h3", {
+                id: section_prefix
+            }, `${method.name}`));
+            output.appendChild(createElement("p", {}, method.description));
+            let formatsTabContent = createElement("div", {
+                class: "tab-content"
             });
+            let formatsTabPane = createElement("div", {
+                class: "tab-pane h-100"
+            });
+            let formatsList = createElement("ul", {
+                class: "nav nav-tabs"
+            });
+            formatsTabPane.appendChild(formatsList);
+            formatsTabPane.appendChild(formatsTabContent);
+            output.appendChild(formatsTabPane);
+            let firstFormat = true;
+
+            formats.map(format => {
+                let outputformat = {}[format] || format.replace(/^[^a-zA-Z]/g, "").replace(/[^a-zA-Z]$/g, "");
+                let base_url = dataset._summary.tabledap || dataset._summary.griddap;
+                let formatNoExtension = getFormatName(format);
+                let partial_url = base_url + "." + formatNoExtension
+                let full_url = partial_url + "?" + method.query;
+
+                let params = [];
+                if (full_url.startsWith("//")) {
+                    full_url = location.protocol + full_url;
+                }
+                let searchParams = full_url.toLowerCase().startsWith("http") ? new URL(full_url).searchParams : new URL(full_url, dataset.erddap.endpoint).searchParams;
+                searchParams.forEach((i, k) => {
+                    if (searchParams.get(k).length || method.query.indexOf(k + "=") >= 0 || method.query.indexOf(encodeURIComponent(k) + "=") >= 0) {
+                        let param = {};
+                        param[k] = searchParams.get(k);
+                        params.push(param);
+                    } else {
+                        params.push(k);
+                    }
+                });
+
+                let getIdPrefix = (f) => (method.name + "-" + getFormatName(f)).replace(/\W/, '-').replace(/--/g, '-').toLowerCase();
+                let id_prefix = getIdPrefix(format);
+                method.hash = '#' + section_prefix;
+                let li = createElement("li", {
+                    class: "nav-item"
+                });
+                let a = createElement("a", {
+                    class: "nav-link" + (firstFormat ? " active show" : ""),
+                    "data-toggle": "pill",
+                    href: "#" + id_prefix
+                }, formatNoExtension);
+                li.appendChild(a);
+                formatsList.appendChild(li);
+
+                let div = createElement('div', {
+                    'class': "tab-pane h-100 fade" + (firstFormat ? " active show" : ""),
+                    id: id_prefix,
+                    role: "tabpanel"
+                });
+                let ul = document.createElement('ul');
+                ul.setAttribute('class', "nav nav-pills mb-5");
+                ul.setAttribute('id', `pills-${id_prefix}-tab`);
+                ul.setAttribute("role", "tablist");
+                div.appendChild(ul);
+                firstFormat = false;
+                var langSelected = true;
+                ["shell", "python", "r", "javascript", "csharp"].forEach((lang) => {
+                    var fix = (id_prefix + '-' + lang).replace(/[^\w\-\d_]/g, '-');
+                    let li = document.createElement('li');
+                    li.setAttribute("class", "nav-item");
+                    let a = document.createElement('a');
+                    a.setAttribute("class", "codetab nav-link" + (langSelected ? " active show " : " ") + lang + "-lang");
+                    a.setAttribute("id", `pills-${fix}-tab`);
+                    a.setAttribute("data-lang", `.${lang}-lang`)
+                    a.setAttribute("data-toggle", "pill");
+                    a.setAttribute("href", `#pills-${fix}`);
+                    a.setAttribute("role", "tab");
+                    a.setAttribute("aria-controls", `pills-${fix}`);
+                    a.setAttribute("aria-selected", langSelected);
+                    a.innerText = lang;
+                    li.appendChild(a);
+                    ul.appendChild(li);
+                    langSelected = false;
+                });
+                formatsTabContent.appendChild(div);
+
+                let tabcontent = createElement("div", {
+                    class: "tab-content",
+                    id: `pills-${id_prefix}-tabContent`
+                });
+                div.appendChild(tabcontent)
+                let codeElement = (lang, code, active) => {
+                    let fix = (id_prefix + '-' + lang).replace(/[^\w\-\d_]/g, '-');
+                    let div = document.createElement('div');
+                    div.setAttribute("class", 'tab-pane fade' + (active ? " show active" : ""));
+                    div.setAttribute("id", `pills-${fix}`);
+                    div.setAttribute("role", "tabpanel");
+                    div.setAttribute("aria-labelledby", `pills-${fix}-tab`);
+
+                    let codeEl = createElement("code", {
+                        class: `language-${lang}`
+                    }, code);
+                    if(hljs){
+                        hljs.highlightBlock(codeEl)
+                    }
+                    let pre = createElement("pre");
+                    pre.appendChild(codeEl);
+                    div.appendChild(pre);
+                    return div;
+                }
+
+                tabcontent.appendChild(codeElement("shell", "curl '" + full_url.replace(/'/, "\\'") + "'", true));
+                tabcontent.appendChild(codeElement("python", getPythonFunction(partial_url, params, method.query, format)));
+                tabcontent.appendChild(codeElement("r", getRFunction(partial_url, params, method.query)));
+                tabcontent.appendChild(codeElement("javascript", getJavascriptFunction(partial_url, params)));
+                tabcontent.appendChild(codeElement("csharp", "// csharp code coming soon....(ish)"));
+
+                var queryResultElement = (result) => {
+                    let div = createElement("div");
+                    let p = createElement("p", {
+                        class: "lead"
+                    });
+                    p.innerText = "* The above commands return " + outputformat.toUpperCase() + " structured like this:";
+                    div.appendChild(p);
+                    let code = createElement("code",{class: `language-${format}`},result);
+                    let pre = createElement("pre");
+                    pre.appendChild(code);
+                    div.appendChild(pre);
+                    if(hljs){
+                        hljs.highlightBlock(code)
+                    }
+
+                    return div;
+                }
+
+                let query_output_el = createElement("div", {}, "(fetching output)");
+                div.appendChild(query_output_el);
+
+                setTimeout(() => {
+                    getQueryOutput(partial_url, params).then(queryOutput => {
+                        emptyElement(query_output_el).appendChild(queryResultElement(queryOutput));
+                    }, (e) => {
+                        let el = queryResultElement("sorry the request failed, an example is not available at this time.");
+                        emptyElement(query_output_el).appendChild(el);
+                    });
+                }, 0)
+
+
+            });
+            return output;
+        }
+        let emptyElement = (el) => {
+            while (el.firstChild) {
+                el.removeChild(el.firstChild);
+            }
+            return el;
         }
 
         let getDatasetLink = (erddap_url, dataset_id, dataset_type) => {
@@ -525,45 +454,61 @@
             ].join("");
         }
         let getOverview = (ncglobal, dataset_link, options, dataset_type) => {
-            var headline = [
-                "The [", ncglobal.title.value, "](", ncglobal.infoUrl.value,
-                ") dataset is hosted in [ERDDAP](" + dataset_link + ")"
-            ].join("");
+            let div = createElement("div", {
+                class: "row"
+            });
+            let div1 = createElement("div", {
+                class: "col-sm-12"
+            });
+            var id = dataset_link + "|--overview";
+            div1.appendChild(createElement("h2", {
+                id: id
+            }, "Overview"));
 
-            var output = [
-                "",
-                headline,
-                "",
-                ncglobal.summary.value,
-            ];
-            if (options.bootstrap4) {
-                var id = dataset_link + "|--overview";
-                output.unshift("<h2 id='" + id + "'>Overview</h2>");
-                output.unshift('<div class="row"><div class="col-sm-12">');
-                output.push('</div></div>');
-            } else {
-                output.unshift("# " + ncglobal.title.value);
-            }
+            let p = createElement("p", {
+                class: "lead"
+            });
+            p.appendChild(document.createTextNode("The "));
+            p.appendChild(createElement("a", {
+                href: ncglobal.infoUrl.value,
+                target: "_blank"
+            }, ncglobal.title.value));
+            p.appendChild(document.createTextNode(" dataset is hosted in "));
+            p.appendChild(createElement("a", {
+                href: dataset_link,
+                target: "_blank"
+            }, "ERDDAP"));
+            div1.appendChild(p);
+            div1.appendChild(createElement("p", {}, ncglobal.summary.value));
 
-            var subtitle = "## Data Access Protocol";
+            let div2 = document.createElement("div");
             if (dataset_type === "tabledap") {
-                subtitle = "## Tabledap Data Access Protocol";
+                div2.appendChild(createElement("h2", {}, "Tabledap Access Protocol"))
             } else if (dataset_type === "griddap") {
-                subtitle = "## Griddap Data Access Protocol";
+                div2.appendChild(createElement("h2", {}, "Griddap Access Protocol"))
+            } else {
+                div2.appendChild(createElement("h2", {}, "Data Access Protocol"))
             }
-            output.push("");
-            output.push(subtitle);
-            output.push("Data from the " + ncglobal.title.value + " dataset can be fetched in [many formats](" + (dataset_link.replace(/[^\/]*$/, "documentation.html")) + ") using simple (restful) http requests.");
-            output.push("");
-            output.push("The [data access form](" + dataset_link + ") is a great way to get started, or to refine your query.");
-            output.push("");
+            let p2 = createElement("p2", {}, "Data from the " + ncglobal.title.value + " dataset can be fetched in ");
+            p2.appendChild(createElement("a", {
+                href: dataset_link.replace(/[^\/]*$/) + "documentation.html"
+            }, "many formats"));
+            p2.appendChild(document.createTextNode(" using simple (restful) http requests."));
+            div2.appendChild(p2);
+            let p3 = createElement("p", {}, "The ");
+            p3.appendChild(createElement("a", {
+                href: dataset_link
+            }, "data access form"));
+            p3.appendChild(document.createTextNode(" is a great way to get started, or to refine your query."));
+            div2.appendChild(p3);
 
             /*
             output.push("The general format for tabledap queries is " +
                 "<a href='"++"' title='"+dataset_link.replace(/.html$/,"")+"'>dataset_link</a>.<span title='eg. htmlTable, csv, nc, etc.'>format</span>?comma_separated_variable,&filter&anotherFilter")
             */
-            return output.join("\n");
-
+            div.appendChild(div1);
+            div1.appendChild(div2);
+            return div;
         }
         let getVariablesTable = (meta, _type, dataset_id, options, toc, dataset_link) => {
             let [singular, plural] = {
@@ -574,50 +519,40 @@
                 [singular, "Type", "Comment"],
                 ["----", "----", "-------"]
             ];
+            let div = document.createElement("div");
+            div.appendChild(createElement("h2", {}, plural));
+
+            let table = document.createElement("table");
+            table.setAttribute("class", "table table-sm");
+            let thead = document.createElement("thead");
+            let tr = document.createElement("tr");
+            tr.appendChild(createElement("th", {}, singular));
+            tr.appendChild(createElement("th", {}, "Type"));
+            tr.appendChild(createElement("th", {}, "Comment"));
+            thead.appendChild(tr)
+            table.appendChild(thead)
+            let tbody = document.createElement("tbody");
             var maxlen = [0, 0, 0];
             meta._fieldnames.forEach((fieldname) => {
                 if (meta.info[_type][fieldname]) {
                     var v = meta.info[_type][fieldname];
                     var attr = meta.info.attribute[fieldname];
                     var comment = attr.Comment ? attr.Comment.value : (attr.long_name ? attr.long_name.value.indexOf(' ') > 0 ? attr.long_name.value : "" : "");
-                    var row = [fieldname, v[""].type, comment];
-
-                    for (var i = 0; i < row.length; i++) {
-                        maxlen[i] = Math.max(maxlen[i], row[i].length)
-                    }
-                    rows.push(row);
+                    let tr1 = document.createElement("tr");
+                    tr1.appendChild(createElement("td", {}, fieldname))
+                    tr1.appendChild(createElement("td", {}, v[""].type))
+                    tr1.appendChild(createElement("td", {}, comment))
+                    tbody.appendChild(tr1)
                 }
             });
-            var output = [];
-            rows.forEach((row) => {
-                for (var i = 0; i < maxlen.length; i++) {
-                    row[i] = row[i].padEnd(maxlen[i], " ");
-                }
-                output.push(row.join(" | "));
-            });
-            output[1] = output[1].replace(/\s/g, "-").replace("-|-", " | ");
-
-            output.unshift("");
-            if (options.tableInTitle) {
-                output.unshift(`## ${dataset_id}: ${singular}`);
-            } else {
-                if (options.bootstrap4) {
-                    var id = `${dataset_link}|${dataset_id}--${_type}s`;
-                    output.unshift(`<h2 id='${id}'>${plural}</h2>`);
-                    output.unshift('<div class="row"><div class="col-sm-12">');
-                    output.push('</div></div>');
-                    toc.push(`<p><a href='#${id}'>${plural}</a></p>`);
-                } else {
-                    output.unshift(`## ${plural}`);
-                }
-            }
-            return output.join("\n");
+            table.appendChild(tbody);
+            div.appendChild(table);
+            return div;
         }
 
-        this.generateDocs = (dataset_url, example)=>{
+        this.generateDocs = (dataset_url, example) => {
 
             let options = {
-                bootstrap4: true,
                 example: example
             };
 
@@ -625,6 +560,7 @@
             let erddap = new ErddapClient(parsed.erddap_url);
 
             return generateAPIDocs(erddap, parsed.dataset_id, options).then((apidocs) => {
+                return apidocs;
                 //var docid = getDatasetLink(erddap.base_url,dsid);
                 //$(":root").attr('id',docid);
                 //if(!window.location.hash.startsWith("#"+docid)){

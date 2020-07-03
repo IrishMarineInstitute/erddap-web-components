@@ -34,7 +34,7 @@
 		// derived from https://blog.logrocket.com/jsonp-demystified-what-it-is-and-why-it-exists/
 		options = options || {};
 		let head = document.querySelector('head');
-		let timeout = options.timeout || 7500;
+		let timeout = options.timeout || 30000;
 		let callbackName = options.callbackName || `jsonpCallback${jsonpID}`;
 		jsonpID += 1;
 
@@ -58,12 +58,11 @@
 
 			script.addEventListener('error', error => {
 				cleanUp();
-
 				return reject(error);
 			});
 
 			function cleanUp() {
-				window[callbackName] = undefined;
+				delete window[callbackName];
 				head.removeChild(script);
 				window.clearTimeout(timeoutId);
 				script = null;
@@ -126,7 +125,7 @@
 					resolve(true);
 				})
 				.catch(function(e) {
-					console.log("(testConnect)", e);
+					//console.log("(testConnect)", e);
 					resolve(false);
 				});
 		});
@@ -286,6 +285,8 @@
 				dataset.subsets = this.subsets;
 				this._meta = dataset;
 				return dataset;
+			}).catch(e=>{
+				console.log("fred",e);
 			});
 		});
 

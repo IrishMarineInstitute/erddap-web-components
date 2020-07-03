@@ -548,7 +548,6 @@
         Object.keys(navlinks).map((tab) => {
             navlinks[tab].addEventListener("click", (e) => {
                 let targetTab = e.currentTarget;
-                let curentPane = targetTab.closest('div').querySelectorAll("div.tab-content > div.tab-pane");
                 let tabs = targetTab.closest('ul').querySelectorAll("li.nav-item > a.nav-link");
                 let targetPane = targetTab.closest('div.tab-pane').querySelector(targetTab.getAttribute("href"));
                 if (!targetPane) {
@@ -969,7 +968,20 @@
         }
 
         connectedCallback() {
+            // wait until children parsed...
+            setTimeout(()=>this._configureErddapClients())
+        }
+        _configureErddapClients() {
             if (this._erddapConfigs) {
+                return this.testConnections();
+            }
+            if(this.getElementsByTagName("option").length){
+                let options = this.getElementsByTagName("option");
+                let erddapConfigs = [];
+                for (let option of options) {
+                    erddapConfigs.push({name: option.text, short_name: option.text, url: option.value, public: true})
+                }
+                this.erddaps = erddapConfigs;
                 return this.testConnections();
             }
             return ErddapClient.fetchAwesomeErddaps().then(configs => {
