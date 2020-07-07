@@ -88,20 +88,10 @@
                     exampleQuerySection.appendChild(createElement("h2", {}, "Example Queries"));
                     exampleQuerySection.appendChild(createElement("p", {},
                         "Below are some example queries to get you started with " + ncglobal.title.value));
-
-                    let dimensions = document.createElement("div");
-                    if (dataset_type === "griddap") {
-                        dimensions = getVariablesTable(meta, "dimension", dataset_id, options, toc, dataset_link);
-                        exampleQuerySection = document.createElement("div");
-                    }
-                    let variables = getVariablesTable(meta, "variable", dataset_id, options, toc, dataset_link);
-
                     let parts = createElement("div", {
                         id: "parts"
                     })
                     parts.appendChild(overview);
-                    parts.appendChild(dimensions);
-                    parts.appendChild(variables);
                     parts.appendChild(exampleQuerySection);
 
                     let zapidox = options.zapidox || _getMetaZapidocs(meta);
@@ -508,45 +498,6 @@
             */
             div.appendChild(div1);
             div1.appendChild(div2);
-            return div;
-        }
-        let getVariablesTable = (meta, _type, dataset_id, options, toc, dataset_link) => {
-            let [singular, plural] = {
-                "variable": ["Variable", "Variables"],
-                "dimension": ["Dimension", "Dimensions"]
-            }[_type];
-            var rows = [
-                [singular, "Type", "Comment"],
-                ["----", "----", "-------"]
-            ];
-            let div = document.createElement("div");
-            div.appendChild(createElement("h2", {}, plural));
-
-            let table = document.createElement("table");
-            table.setAttribute("class", "table table-sm");
-            let thead = document.createElement("thead");
-            let tr = document.createElement("tr");
-            tr.appendChild(createElement("th", {}, singular));
-            tr.appendChild(createElement("th", {}, "Type"));
-            tr.appendChild(createElement("th", {}, "Comment"));
-            thead.appendChild(tr)
-            table.appendChild(thead)
-            let tbody = document.createElement("tbody");
-            var maxlen = [0, 0, 0];
-            meta._fieldnames.forEach((fieldname) => {
-                if (meta.info[_type][fieldname]) {
-                    var v = meta.info[_type][fieldname];
-                    var attr = meta.info.attribute[fieldname];
-                    var comment = attr.Comment ? attr.Comment.value : (attr.long_name ? attr.long_name.value.indexOf(' ') > 0 ? attr.long_name.value : "" : "");
-                    let tr1 = document.createElement("tr");
-                    tr1.appendChild(createElement("td", {}, fieldname))
-                    tr1.appendChild(createElement("td", {}, v[""].type))
-                    tr1.appendChild(createElement("td", {}, comment))
-                    tbody.appendChild(tr1)
-                }
-            });
-            table.appendChild(tbody);
-            div.appendChild(table);
             return div;
         }
 

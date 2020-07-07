@@ -26,6 +26,18 @@
     const js_leaflet = "https://unpkg.com/leaflet@1.6.0/dist/leaflet.js";
 
     let mapId = 0;
+    let createElement = (name, attrs, text) => {
+        let el = document.createElement(name);
+        if (attrs) {
+            Object.keys(attrs).map(attr => {
+                el.setAttribute(attr, attrs[attr]);
+            });
+        }
+        if (text) {
+            el.innerText = text;
+        }
+        return el;
+    }
     const ErddapTools = {
         addLinks: function(text) {
             // see https://stackoverflow.com/questions/37684/how-to-replace-plain-urls-with-links
@@ -248,8 +260,49 @@
                 addRow(key, 3);
             });
             return table;
+        },
+        fieldsTable: (meta, _type) => {
+            let [singular, plural] = {
+                "variable": ["Variable", "Variables"],
+                "dimension": ["Dimension", "Dimensions"]
+            }[_type];
+            var rows = [
+                [singular, "Type", "Comment"],
+                ["----", "----", "-------"]
+            ];
+            let div = document.createElement("div");
+            div.appendChild(createElement("h2", {}, plural));
+
+            let table = document.createElement("table");
+            table.setAttribute("class", "table table-sm");
+            let thead = document.createElement("thead");
+            let tr = document.createElement("tr");
+            tr.appendChild(createElement("th", {}, singular));
+            tr.appendChild(createElement("th", {}, "Type"));
+            tr.appendChild(createElement("th", {}, "Comment"));
+            thead.appendChild(tr)
+            table.appendChild(thead)
+            let tbody = document.createElement("tbody");
+            var maxlen = [0, 0, 0];
+            meta._fieldnames.forEach((fieldname) => {
+                if (meta.info[_type][fieldname]) {
+                    var v = meta.info[_type][fieldname];
+                    var attr = meta.info.attribute[fieldname];
+                    var comment = attr.Comment ? attr.Comment.value : (attr.long_name ? attr.long_name.value.indexOf(' ') > 0 ? attr.long_name.value : "" : "");
+                    let tr1 = document.createElement("tr");
+                    tr1.appendChild(createElement("td", {}, fieldname))
+                    tr1.appendChild(createElement("td", {}, v[""].type))
+                    tr1.appendChild(createElement("td", {}, comment))
+                    tbody.appendChild(tr1)
+                }
+            });
+            table.appendChild(tbody);
+            div.appendChild(table);
+            return div;
         }
     }
+
+
 
     function createSearchElements() {
         let div1 = document.createElement("div");
@@ -468,7 +521,7 @@
         });
         cancelAddNewServerButtion.addEventListener("click", hideAddServerForm);
 
-        let filterServers = ()=>{
+        let filterServers = () => {
             var table = document.getElementById("settingsTable");
             if (table) {
                 var filters = document.getElementById("filter").value.split(/\s+/).map(function(t) {
@@ -792,6 +845,7 @@
 
     window.customElements.define('erddap-dataset-select', ErddapDatasetSelect);
 
+
     class ErddapDatasetInfoTable extends HTMLElement {
         static observedAttributes = ["dataset-url"];
         constructor() {
@@ -810,11 +864,11 @@
 
         render() {
             var dataset_url = this.getAttribute("dataset-url");
-            while (this.container.firstChild) {
-                this.container.removeChild(this.container.firstChild);
-            }
             if (dataset_url && dataset_url !== this.rendered) {
                 this.rendered = dataset_url;
+                while (this.container.firstChild) {
+                    this.container.removeChild(this.container.firstChild);
+                }
                 ErddapClient.fetchDataset(dataset_url).then((dataset) => {
                     let table = document.createElement("table");
                     table.setAttribute("class", "table");
@@ -837,6 +891,49 @@
         }
     }
     window.customElements.define('erddap-dataset-info-table', ErddapDatasetInfoTable);
+
+    class ErddapDatasetFieldsTable extends HTMLElement {
+        static observedAttributes = ["dataset-url"];
+
+        constructor() {
+            super();
+            let shadow = this.attachShadow({
+                mode: 'open'
+            });
+            shadow.appendChild(stylesheet(ss_bootstrap));
+            this.container = document.createElement("div");
+            shadow.appendChild(this.container);
+            this.rendered = false;
+        }
+        render() {
+            var dataset_url = this.getAttribute("dataset-url");
+            if (dataset_url && dataset_url !== this.rendered) {
+                this.rendered = dataset_url;
+                while (this.container.firstChild) {
+                    this.container.removeChild(this.container.firstChild);
+                }
+                ErddapClient.fetchDataset(dataset_url).then((dataset) => {
+                    if(dataset.dimensions){
+                        this.container.appendChild(ErddapTools.fieldsTable(dataset, "dimension"))
+                    }
+                    this.container.appendChild(ErddapTools.fieldsTable(dataset, "variable"))
+                })
+            }
+        }
+        connectedCallback() {
+            this.render();
+        }
+
+        disconnectedCallback() {}
+
+        attributeChangedCallback(name, oldVal, newVal) {
+            if (name === "dataset-url" && oldVal !== newVal) {
+                this.render();
+            }
+
+        }
+    }
+    window.customElements.define('erddap-dataset-fields-table', ErddapDatasetFieldsTable);
     class ErddapMultiServerSearch extends HTMLElement {
         constructor() {
             super();
@@ -969,17 +1066,22 @@
 
         connectedCallback() {
             // wait until children parsed...
-            setTimeout(()=>this._configureErddapClients())
+            setTimeout(() => this._configureErddapClients())
         }
         _configureErddapClients() {
             if (this._erddapConfigs) {
                 return this.testConnections();
             }
-            if(this.getElementsByTagName("option").length){
+            if (this.getElementsByTagName("option").length) {
                 let options = this.getElementsByTagName("option");
                 let erddapConfigs = [];
                 for (let option of options) {
-                    erddapConfigs.push({name: option.text, short_name: option.text, url: option.value, public: true})
+                    erddapConfigs.push({
+                        name: option.text,
+                        short_name: option.text,
+                        url: option.value,
+                        public: true
+                    })
                 }
                 this.erddaps = erddapConfigs;
                 return this.testConnections();
@@ -1004,7 +1106,7 @@
             shadow.appendChild(stylesheet(ss_bootstrap));
             shadow.appendChild(stylesheet(ss_highlight));
             let style = document.createElement("style");
-            style.setAttribute("type","text/css");
+            style.setAttribute("type", "text/css");
             style.innerText = `
             pre.hljs {
                 overflow: auto;
@@ -1106,59 +1208,61 @@
 
         createErddapDatasetTabsElement(dataset_url) {
             let link = dataset_url.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/[-]+/g, '-');
-            let div = document.createElement("div");
-            div.setAttribute("class", "tab-pane container");
-            let ul = document.createElement("ul");
-            ul.setAttribute("class", "nav nav-tabs");
-            ul.setAttribute("role", "tablist");
-            let li = document.createElement("li");
-            li.setAttribute("class", "nav-item");
-            li.setAttribute("role", "presentation");
-            let a = document.createElement("a");
-            a.setAttribute("class", "nav-link active");
-            a.setAttribute("data-toggle", "tab");
-            a.setAttribute("href", `#${link}-docs`);
-            a.setAttribute("role", "tab");
-            a.setAttribute("aria-controls", "home");
-            a.setAttribute("aria-selected", "true");
-            a.appendChild(document.createTextNode("Info"));
-            li.appendChild(a)
-            ul.appendChild(li)
-            let li1 = document.createElement("li");
-            li1.setAttribute("class", "nav-item");
-            li1.setAttribute("role", "presentation");
-            let a1 = document.createElement("a");
-            a1.setAttribute("class", "nav-link");
-            a1.setAttribute("data-toggle", "tab");
-            a1.setAttribute("href", `#${link}-api`);
-            a1.setAttribute("role", "tab");
-            a1.setAttribute("aria-controls", "profile");
-            a1.setAttribute("aria-selected", "false");
-            a1.appendChild(document.createTextNode("API"));
-            li1.appendChild(a1)
-            ul.appendChild(li1)
+            let div = createElement("div", {
+                "class": "tab-pane container"
+            });
+            let ul = createElement("ul", {
+                "class": "nav nav-tabs",
+                "role": "tablist"
+            });
+            let tabs = [
+                {name: "Info",
+                active: true,
+                element: "erddap-dataset-info-table"},
+                {name: "Fields",
+                element: "erddap-dataset-fields-table"
+
+                },{
+                    name: "API",
+                    element: "erddap-dataset-api"
+                } 
+            ];
+            tabs.map(tab => {
+                let li = createElement("li", {
+                    "class": "nav-item",
+                    "role": "presentation"
+                });
+
+                let a = createElement("a", {
+                    "class": "nav-link"+(tab.active?" active":""),
+                    "data-toggle": "tab",
+                    "href": `#${link}-${tab.name.toLowerCase()}`,
+                    "role": "tab",
+                    "aria-controls": `${tab.name.toLowerCase()}`,
+                    "aria-selected": tab.active ? "true": "false"
+                }, tab.name);
+                li.appendChild(a)
+                ul.appendChild(li)
+
+            });
             div.appendChild(ul)
-            let datasetContent = document.createElement("div");
-            datasetContent.setAttribute("class", "tab-content");
-            datasetContent.setAttribute("id", "datasetContent");
-            let datasetDocs = document.createElement("div");
-            datasetDocs.setAttribute("class", "tab-pane fade show active");
-            datasetDocs.setAttribute("id", `${link}-docs`);
-            datasetDocs.setAttribute("role", "tabpanel");
-            datasetDocs.setAttribute("aria-labelledby", "home-tab");
-            let datasetInfoTable = document.createElement("erddap-dataset-info-table");
-            datasetInfoTable.setAttribute("dataset-url", dataset_url);
-            datasetDocs.appendChild(datasetInfoTable)
-            datasetContent.appendChild(datasetDocs)
-            let datasetApi = document.createElement("div");
-            datasetApi.setAttribute("class", "tab-pane fade");
-            datasetApi.setAttribute("id", `${link}-api`);
-            datasetApi.setAttribute("role", "tabpanel");
-            datasetApi.setAttribute("aria-labelledby", "profile-tab");
-            let datasetApiDocs = document.createElement("erddap-dataset-api");
-            datasetApiDocs.setAttribute("dataset-url", dataset_url);
-            datasetApi.appendChild(datasetApiDocs)
-            datasetContent.appendChild(datasetApi)
+            let datasetContent = createElement("div", {
+                "class": "tab-content",
+                "id": "datasetContent"
+            });
+            tabs.map(tab => {
+                let tabpane = createElement("div", {
+                    "class": "tab-pane fade" +(tab.active ? " active show" : ""),
+                    "id": `${link}-${tab.name.toLowerCase()}`,
+                    "role": "tabpanel",
+                    "aria-labelledby": `${tab.name.toLowerCase()}-tab`
+                });
+                let element = createElement(tab.element, {
+                    "dataset-url": dataset_url
+                });
+                tabpane.appendChild(element)
+                datasetContent.appendChild(tabpane)
+            });
 
             div.appendChild(datasetContent)
             return div;
