@@ -162,35 +162,39 @@
             }
             return output.join("\n");
         }
-        let getRFunction = (url, params) => {
+        let getRFunction = (url, params, method_query, format) => {
             var output = [];
-            output.push("require(httr)");
+            if(format.indexOf("jsonl")>=0){
+                output.push("require(jsonlite)");
+            }
             let options = [],
                 args = {};
             params.forEach(o => {
                 if (typeof(o) == 'string') {
                     options.push(o);
                 } else {
-                    args[Object.keys(o)[0]] = Object.values(o)[0];
+                    options.push(`${Object.keys(o)[0]}=${Object.values(o)[0]}`);
                 }
             });
-            output.push("params <- list()");
-            Object.keys(args).forEach(key => {
-                output.push("params[[ '" + key + "' ]] <- '" + args[key] + "'");
-            })
-            output.push("");
 
             var fields = options.shift();
-            output.push("fields <- '" + fields + "'");
+            output.push("fields = list(" + fields.split(",").map(x=>`"${x}"`).join(",\n        ") + ")");
 
-            output.push("options <- list(");
-            output.push("    fields" + (options.length ? "," : ""));
+            output.push("options = list(");
+            output.push("    paste(fields, collapse=',')" + (options.length ? "," : ""));
             output.push(options.map(o => "    '" + o + "'").join(",\n"));
             output.push(")")
-            output.push("options <- lapply(options, URLencode, reserved=TRUE)");
+            output.push("options = lapply(options, URLencode, reserved=TRUE)");
             output.push("");
-            output.push('url <- sprintf("' + url + '?%s", ' + "paste(options, collapse='&'))");
-            output.push("response = GET(url)")
+            output.push('url = sprintf("' + url + '?%s", ' + "paste(options, collapse='&'))");
+            if(format === ".csv0"){
+                output.push("data = read.csv(url, col.names=fields)")
+            }else if(format.indexOf("jsonl")){
+                output.push("data = stream_in(url(url))")
+            }else {
+                output.push("response = GET(url)")
+                output.push('data = content(response, as="text")')
+            }
             return output.join("\n");
 
         }
@@ -388,7 +392,7 @@
 
                 tabcontent.appendChild(codeElement("shell", "curl '" + full_url.replace(/'/, "\\'") + "'", true));
                 tabcontent.appendChild(codeElement("python", getPythonFunction(partial_url, params, method.query, format)));
-                tabcontent.appendChild(codeElement("r", getRFunction(partial_url, params, method.query)));
+                tabcontent.appendChild(codeElement("r", getRFunction(partial_url, params, method.query, format)));
                 tabcontent.appendChild(codeElement("javascript", getJavascriptFunction(partial_url, params)));
                 tabcontent.appendChild(codeElement("csharp", "// csharp code coming soon....(ish)"));
 
