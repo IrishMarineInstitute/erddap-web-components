@@ -15,7 +15,7 @@
 }(this, (function() {
 	'use strict';
 	let jsonpID = 0;
-	var awesomeErddaps;
+	let awesomeErddaps;
 
 	let JSONPfetcher = function() {
 		this._promises = {};
@@ -42,7 +42,7 @@
 				script.src = url + (url.indexOf("?") >= 0 ? "&" : "?") + `.jsonp=${callbackName}`;
 				script.async = true;
 
-				const timeoutId = window.setTimeout(() => {
+				let timeoutId = window.setTimeout(() => {
 					cleanUp();
 
 					return reject(new Error('Timeout'));
@@ -175,7 +175,7 @@
 
 	let politeFetcher = new PoliteFetcher();
 
-	var ErddapClient = function(settings) {
+	const ErddapClient = function(settings) {
 		if (typeof(settings) === "string") {
 			settings = {
 				url: settings
@@ -212,8 +212,8 @@
 	ErddapClient.prototype.search = function(query, page, itemsPerPage) {
 		page = page || 1;
 		itemsPerPage = itemsPerPage || 10000;
-		var url = this.endpoint + "/search/index.json?";
-		var urlParams = new URLSearchParams("?");
+		let url = this.endpoint + "/search/index.json?";
+		let urlParams = new URLSearchParams("?");
 		urlParams.set("searchFor", query);
 		urlParams.set("page", page);
 		urlParams.set("itemsPerPage", itemsPerPage);
@@ -254,12 +254,12 @@
 		});
 	}
 
-	var e2o = function(data) {
-		var keys = data.table.columnNames;
-		var results = [];
+	const e2o = function(data) {
+		let keys = data.table.columnNames;
+		let results = [];
 		data.table.rows.forEach(function(row) {
-			var result = [];
-			for (var i = 0; i < keys.length; i++) {
+			let result = [];
+			for (let i = 0; i < keys.length; i++) {
 				result[keys[i]] = row[i];
 			}
 			results.push(result);
@@ -267,23 +267,23 @@
 		return results;
 	};
 
-	var time_encoder = function(value, istabledap) {
+	const time_encoder = function(value, istabledap) {
 		if (value instanceof Date) {
 			return istabledap ? value.toISOString2() : ("(" + value.toISOString2() + ")");
 		}
 		try {
-			var m = new Date(value).toISOString2();
+			let m = new Date(value).toISOString2();
 			return istabledap ? m : ("(" + m + ")");
 		} catch (e) {
 			return value;
 		}
 	}
-	var ErddapDataset = function(erddap, dsid) {
+	let ErddapDataset = function(erddap, dsid) {
 		this.erddap = erddap;
 		this.dataset_id = dsid;
 		this.subsets = {};
 		this._fetchMetadata = this.erddap.search("datasetID=" + this.dataset_id).then((data) => {
-			for (var i = 0; i < data.length; i++) {
+			for (let i = 0; i < data.length; i++) {
 				if (data[i]["Dataset ID"] === this.dataset_id) {
 					return data[i];
 				}
@@ -291,11 +291,11 @@
 			throw new Error("Unknown dataset: [" + dsid + "]");
 		}).then((summary) => {
 			this._summary = summary;
-			var url = this.datasetUrl() + "/index.json";
+			let url = this.datasetUrl() + "/index.json";
 			return ErddapClient.fetchJsonp(url).then(response => { // TODO: handle error
-				var obj = {};
-				for (var i = 0; i < response.table.rows.length; i++) {
-					var row = response.table.rows[i];
+				let obj = {};
+				for (let i = 0; i < response.table.rows.length; i++) {
+					let row = response.table.rows[i];
 					obj[row[0]] = obj[row[0]] || {};
 					obj[row[0]][row[1]] = obj[row[0]][row[1]] || {};
 					obj[row[0]][row[1]][row[2]] = obj[row[0]][row[1]][row[2]] || {};
@@ -304,8 +304,8 @@
 				};
 				return (obj);
 			}).then(info => {
-				var param_encoder = {};
-				var dataset = {
+				let param_encoder = {};
+				let dataset = {
 					url: url,
 					_fieldnames: [],
 					_type: {}
@@ -314,14 +314,14 @@
 					dataset.title = info.attribute.NC_GLOBAL.title.value;
 					dataset.institution = info.attribute.NC_GLOBAL.institution.value;
 				} catch (e) {}
-				var subsetVariables = [];
+				let subsetVariables = [];
 				try {
 					subsetVariables = info.attribute.NC_GLOBAL.subsetVariables.value.split(",").map(x => x.trim());
 
 				} catch (e) {}
-				var wanted = ["dimension", "variable"];
-				for (var x = 0; x < wanted.length; x++) {
-					var dimvar = wanted[x];
+				let wanted = ["dimension", "variable"];
+				for (let x = 0; x < wanted.length; x++) {
+					let dimvar = wanted[x];
 					if (!info[dimvar]) {
 						continue;
 					}
@@ -330,11 +330,11 @@
 						dataset.dimensions = {};
 					}
 
-					for (var key in info[dimvar]) {
+					for (let key in info[dimvar]) {
 						dataset._type[key] = "String";
 						dataset._fieldnames.push(key);
-						var etype = info[dimvar][key][""]["type"];
-						var evalue = "" + info[dimvar][key][""]["value"];
+						let etype = info[dimvar][key][""]["type"];
+						let evalue = "" + info[dimvar][key][""]["value"];
 						switch (etype) {
 							case 'float':
 							case 'double':
@@ -362,9 +362,9 @@
 								throw new Error('Unknown type [' + etype + '] for ' + dataset.id + '.' + key);
 						}
 
-						//var isTimeField = false;
+						//let isTimeField = false;
 						if (info.attribute[key] && info.attribute[key]["_CoordinateAxisType"]) {
-							var axisType = info.attribute[key]["_CoordinateAxisType"].value;
+							let axisType = info.attribute[key]["_CoordinateAxisType"].value;
 							switch (axisType) {
 								case "Time":
 									dataset.time_dimension = key;
@@ -401,7 +401,7 @@
 				dataset.info = info;
 				dataset.subsetVariables = subsetVariables;
 				dataset.encode = (variable, constraint, value) => {
-					const encoded_value = this.param_encoder[variable](value);
+					let encoded_value = this.param_encoder[variable](value);
 					return `${variable}${constraint}${encoded_value}`;
 
 				};
@@ -440,7 +440,7 @@
 	}
 
 	ErddapDataset.prototype.fetchData = function(dap) {
-		var url = this.getDataUrl(".json") + dap;
+		let url = this.getDataUrl(".json") + dap;
 		return ErddapClient.fetchJsonp(url)
 			.then(e2o);
 	}
@@ -450,17 +450,17 @@
 		return this._datasets[dsid];
 	}
 
-	var ErddapClients = function(configs, includeCustomConfigs) {
+	const ErddapClients = function(configs, includeCustomConfigs) {
 		this.erddaps = configs.map(function(e) {
 			return new ErddapClient(e)
 		});
 		if (includeCustomConfigs) {
-			var customErddaps = this.getCustomConfigs().map(function(e) {
+			let customErddaps = this.getCustomConfigs().map(function(e) {
 				return new ErddapClient(e)
 			});
-			for (var i = customErddaps.length - 1; i >= 0; i--) {
-				var include = true;
-				for (var j = 0; j < this.erddaps.length; j++) {
+			for (let i = customErddaps.length - 1; i >= 0; i--) {
+				let include = true;
+				for (let j = 0; j < this.erddaps.length; j++) {
 					if (this.erddaps[j].endpoint == customErddaps[i].endpoint) {
 						include = false;
 						break;
@@ -500,7 +500,7 @@
 		});
 		let nsearches = erddaps.length;
 		let nerddaps = nsearches;
-		var nerddapResults = 0;
+		let nerddapResults = 0;
 		let hits = 0;
 
 		let reportStatus = (err) => {

@@ -965,7 +965,7 @@
                     el.appendChild(document.createTextNode(text));
                     return el;
                 }
-                let el = document.createElement("tr");
+                let el = createElement("tr",{class: "dataset", "dataset-url": o.Info});
                 let expand = td("");
                 el.appendChild(expand);
                 el.appendChild(td(o.Title));
@@ -1043,7 +1043,7 @@
                 tbody.appendChild(hit2tr(hit));
             }
             this._erddapClients.search({
-                search: this.elements.search.value, 
+                query: this.elements.search.value, 
                 onResultStatusChanged: onResultsChanged,
                 onHit: onHit
             });
