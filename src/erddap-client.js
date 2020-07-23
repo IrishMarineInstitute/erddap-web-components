@@ -17,11 +17,169 @@
 	let jsonpID = 0;
 	var awesomeErddaps;
 
-	
+	let JSONPfetcher = function() {
+		this._promises = {};
+	}
+	JSONPfetcher.prototype.fetch = function(url, options) {
+		// derived from https://blog.logrocket.com/jsonp-demystified-what-it-is-and-why-it-exists/
+		options = options || {};
+		if (!this._promises[url]) {
+			let head = document.querySelector('head');
+			let timeout = options.timeout || 30000;
+			let callbackName = options.callbackName || `jsonpCallback${jsonpID}`;
+			jsonpID += 1;
+			let promise = new Promise((resolve, reject) => {
+				let script = document.createElement('script');
+
+				let cleanUp = () => {
+					delete window[callbackName];
+					head.removeChild(script);
+					window.clearTimeout(timeoutId);
+					script = null;
+					delete this._promises[url];
+				}
+
+				script.src = url + (url.indexOf("?") >= 0 ? "&" : "?") + `.jsonp=${callbackName}`;
+				script.async = true;
+
+				const timeoutId = window.setTimeout(() => {
+					cleanUp();
+
+					return reject(new Error('Timeout'));
+				}, timeout);
+
+				window[callbackName] = data => {
+					cleanUp();
+
+					return resolve(data);
+				};
+
+				script.addEventListener('error', error => {
+					cleanUp();
+					return reject(error);
+				});
+
+				head.appendChild(script);
+			});
+			this._promises[url] = promise;
+		}
+		return this._promises[url];
+	}
+
+	let DatasetCache = function() {
+		this.jsonpfetcher = new JSONPfetcher();
+		let dbresolver = (resolve, reject) => {
+			let request = window.indexedDB.open('datasets', 7);
+			request.onerror = () => {
+				console.log("problem opening database");
+				reject('datasets database failed to open');
+			};
+			request.onsuccess = () => {
+				resolve(request.result);
+			};
+			request.onupgradeneeded = (e) => {
+				// Grab a reference to the opened database
+				let db = e.target.result;
+				//db.deleteObjectStore('jsonp');
+				let jsonpStore = db.createObjectStore('jsonp', {
+					keyPath: "url"
+				});
+
+				// Define what data items the objectStore will contain
+				jsonpStore.createIndex('url', 'url', {
+					unique: true
+				});
+				jsonpStore.createIndex('time', 'time', {
+					unique: false
+				});
+				jsonpStore.createIndex('data', 'data', {
+					unique: false
+				});
+
+				console.log('Database setup complete');
+			};
+		}
+		this._connect = new Promise(dbresolver);
+	}
+	DatasetCache.prototype.connect = function() {
+		return this._connect;
+	}
+
+	DatasetCache.prototype.getJSONP = function(url, options) {
+		options = options || {};
+		let expire_seconds = options.expire_seconds || (60 * 10); // ten minutes default
+		return this.connect().then(db => new Promise((resolve, reject) => {
+			let jsonp = db.transaction('jsonp').objectStore('jsonp');
+			let cacheRequest = jsonp.get(url);
+			let fetchAndCache = () => {
+				resolve(this.jsonpfetcher.fetch(url, options).then(data => {
+					//console.log("data",data);
+					let cache = db.transaction(['jsonp'], 'readwrite').objectStore('jsonp');
+					try {
+						cache.put({
+							url: url,
+							timestamp: new Date().getTime(),
+							data: data
+						});
+					} catch (k) {
+						console.log(k)
+					}
+					return data;
+				}));
+			}
+			cacheRequest.onsuccess = e => {
+				if (cacheRequest.result && cacheRequest.result.timestamp + (expire_seconds * 1000) > new Date().getTime()) {
+					resolve(cacheRequest.result.data);
+				} else {
+					fetchAndCache();
+				}
+			};
+			cacheRequest.onerror = e => {
+				console.log("cache problem", e);
+				fetchAndCache();
+			}
+		}));
+	}
+
+	let datasetCache = new DatasetCache();
+
+	/**
+	 * Sends out one request at a time
+	 * Used for fetching/caching the metadata of the search results,
+	 * without overwhelming the ERDDAP servers.
+	 * TODO: politeness queue per ERDDAP server, not one overall.
+	 */
+	let PoliteFetcher = function(){
+		let _queue = [];
+		let processing = 0;
+		let process = () => {
+			if (processing) return;
+			let url = _queue.shift();
+			if (url) {
+				++processing;
+				ErddapClient.fetchJsonp(url).finally(() => {
+					processing--;
+					setTimeout(process, 0)
+				});
+			}
+		}
+
+		this.enqueue = (url) => {
+			if (_queue.indexOf(url) >= 0) return;
+			_queue.push(url);
+			if (!processing) {
+				process();
+			}
+		}
+	}
+
+	let politeFetcher = new PoliteFetcher();
 
 	var ErddapClient = function(settings) {
-		if(typeof(settings) === "string"){
-			settings = {url: settings};
+		if (typeof(settings) === "string") {
+			settings = {
+				url: settings
+			};
 		}
 		this.settings = settings || {};
 		settings.url = settings.url || "https://coastwatch.pfeg.noaa.gov/erddap/";
@@ -30,54 +188,18 @@
 		this.settings.disabled = localStorage.getItem(this.disabledkey) ? true : false;
 		this._datasets = {};
 	}
+
 	ErddapClient.fetchJsonp = function(url, options) {
-		// derived from https://blog.logrocket.com/jsonp-demystified-what-it-is-and-why-it-exists/
-		options = options || {};
-		let head = document.querySelector('head');
-		let timeout = options.timeout || 30000;
-		let callbackName = options.callbackName || `jsonpCallback${jsonpID}`;
-		jsonpID += 1;
-
-		return new Promise((resolve, reject) => {
-			let script = document.createElement('script');
-
-			script.src = url + (url.indexOf("?") >= 0 ? "&" : "?") + `.jsonp=${callbackName}`;
-			script.async = true;
-
-			const timeoutId = window.setTimeout(() => {
-				cleanUp();
-
-				return reject(new Error('Timeout'));
-			}, timeout);
-
-			window[callbackName] = data => {
-				cleanUp();
-
-				return resolve(data);
-			};
-
-			script.addEventListener('error', error => {
-				cleanUp();
-				return reject(error);
-			});
-
-			function cleanUp() {
-				delete window[callbackName];
-				head.removeChild(script);
-				window.clearTimeout(timeoutId);
-				script = null;
-			}
-
-
-			head.appendChild(script);
-		});
+		return datasetCache.getJSONP(url, options);
 	}
+
 	ErddapClient.fetchAwesomeErddaps = () => {
-		if(!awesomeErddaps){
-			awesomeErddaps = ErddapClient.fetchJsonp("https://irishmarineinstitute.github.io/awesome-erddap/erddaps.jsonp", 
-			{callbackName: "awesomeErddapsCb"});
+		if (!awesomeErddaps) {
+			awesomeErddaps = ErddapClient.fetchJsonp("https://irishmarineinstitute.github.io/awesome-erddap/erddaps.jsonp", {
+				callbackName: "awesomeErddapsCb"
+			});
 		}
-		return awesomeErddaps.then(results=>JSON.parse(JSON.stringify(results)));
+		return awesomeErddaps.then(results => JSON.parse(JSON.stringify(results)));
 	}
 
 	ErddapClient.fetchDataset = function(dataset_url) {
@@ -95,7 +217,7 @@
 		urlParams.set("searchFor", query);
 		urlParams.set("page", page);
 		urlParams.set("itemsPerPage", itemsPerPage);
-		return ErddapClient.fetchJsonp(url + urlParams.toString()).then(e2o).then(datasets => {
+		let promise = ErddapClient.fetchJsonp(url + urlParams.toString()).then(e2o).then(datasets => {
 			if (datasets) {
 				datasets.forEach(dataset => {
 					dataset.id = dataset["Dataset ID"];
@@ -105,6 +227,7 @@
 			}
 			return datasets;
 		});
+		return promise;
 	}
 
 	ErddapClient.prototype.listDatasets = function(filter) {
@@ -121,7 +244,7 @@
 		this.settings.connected = false;
 		return new Promise((resolve, reject) => {
 			this.search("time", 1, 1, 5000).then(() => {
-				this.settings.connected = true;
+					this.settings.connected = true;
 					resolve(true);
 				})
 				.catch(function(e) {
@@ -285,8 +408,8 @@
 				dataset.subsets = this.subsets;
 				this._meta = dataset;
 				return dataset;
-			}).catch(e=>{
-				console.log("fred",e);
+			}).catch(e => {
+				console.log("something went wrong", e);
 			});
 		});
 
@@ -350,21 +473,26 @@
 			this.saveCustomConfigs();
 		}
 		this.searchId = 0;
+		this.activeSearchCallback = undefined;
 	}
 	ErddapClients.prototype.testConnect = function(onStatusChanged) {
 		let nerddaps = this.erddaps.length;
 		let remaining = nerddaps;
 		let promises = this.erddaps.map((erddap) =>
-			erddap.testConnect().then(() =>
+			erddap.testConnect().then(() => {
 				onStatusChanged && onStatusChanged({
 					total: nerddaps,
 					remaining: --remaining
-				})
-			)
+				});
+				if (this.activeSearchCallback && erddap.settings && erddap.settings.connected && !erddap.settings.disabled) {
+					this.activeSearchCallback(erddap);
+				}
+			})
 		);
-		return Promise.all(promises).then(()=>this.erddaps);
+		return Promise.all(promises).then(() => this.erddaps);
 	}
-	ErddapClients.prototype.search = function(query, onResultStatusChanged, onHit) {
+	ErddapClients.prototype.search = function(options) {
+		let {query, onResultStatusChanged, onHit, fetchMetadata} = options;
 		let currentSearchId = ++this.searchId;
 		let startTime = (new Date()).getTime();
 		let erddaps = this.erddaps.filter(function(erddap) {
@@ -374,6 +502,7 @@
 		let nerddaps = nsearches;
 		var nerddapResults = 0;
 		let hits = 0;
+
 		let reportStatus = (err) => {
 			let search_time = (new Date()).getTime() - startTime;
 			onResultStatusChanged({
@@ -386,7 +515,7 @@
 				finished: nsearches === 0
 			});
 		}
-		erddaps.forEach(erddap => {
+		let search = erddap => {
 			erddap.search(query).then(result => {
 				if (currentSearchId !== this.searchId) {
 					return;
@@ -397,9 +526,12 @@
 					++nerddapResults;
 					while (result.length) {
 						let data = result.shift();
-						setTimeout(() => {
-							onHit(data)
-						}, 0)
+						if(fetchMetadata) politeFetcher.enqueue(data.Info);
+						if(onHit){
+							setTimeout(() => {
+								onHit(data)
+							}, 0)
+						}
 					}
 				}
 				reportStatus();
@@ -410,7 +542,13 @@
 				--nsearches;
 				reportStatus(err);
 			});
-		});
+		};
+		this.activeSearchCallback = erddap => {
+			++nsearches;
+			++nerddaps;
+			search(erddap);
+		}
+		erddaps.forEach(search);
 	}
-	return [ErddapClient,ErddapClients];
+	return [ErddapClient, ErddapClients];
 })));

@@ -266,10 +266,6 @@
                 "variable": ["Variable", "Variables"],
                 "dimension": ["Dimension", "Dimensions"]
             }[_type];
-            var rows = [
-                [singular, "Type", "Comment"],
-                ["----", "----", "-------"]
-            ];
             let div = document.createElement("div");
             div.appendChild(createElement("h2", {}, plural));
 
@@ -278,6 +274,7 @@
             let thead = document.createElement("thead");
             let tr = document.createElement("tr");
             tr.appendChild(createElement("th", {}, singular));
+            tr.appendChild(createElement("th", {}, "IOOS Category"));
             tr.appendChild(createElement("th", {}, "Type"));
             tr.appendChild(createElement("th", {}, "Comment"));
             thead.appendChild(tr)
@@ -286,11 +283,13 @@
             var maxlen = [0, 0, 0];
             meta._fieldnames.forEach((fieldname) => {
                 if (meta.info[_type][fieldname]) {
-                    var v = meta.info[_type][fieldname];
-                    var attr = meta.info.attribute[fieldname];
-                    var comment = attr.Comment ? attr.Comment.value : (attr.long_name ? attr.long_name.value.indexOf(' ') > 0 ? attr.long_name.value : "" : "");
+                    let v = meta.info[_type][fieldname];
+                    let attr = meta.info.attribute[fieldname];
+                    let comment = attr.Comment ? attr.Comment.value : (attr.long_name ? attr.long_name.value.indexOf(' ') > 0 ? attr.long_name.value : "" : "");
+                    let ioos_category  = attr.ioos_category ? attr.ioos_category.value : "";
                     let tr1 = document.createElement("tr");
                     tr1.appendChild(createElement("td", {}, fieldname))
+                    tr1.appendChild(createElement("td", {}, ioos_category))
                     tr1.appendChild(createElement("td", {}, v[""].type))
                     tr1.appendChild(createElement("td", {}, comment))
                     tbody.appendChild(tr1)
@@ -337,7 +336,7 @@
         let searchForm = document.createElement("div");
         searchForm.setAttribute("id", "searchForm");
         searchForm.setAttribute("class", "form-group");
-        searchForm.setAttribute("style", "display: none");
+        searchForm.setAttribute("style", "display: block");
         let label = document.createElement("label");
         label.setAttribute("for", "search");
         label.appendChild(document.createTextNode("Search Datasets"));
@@ -1043,8 +1042,11 @@
             let onHit = (hit) => {
                 tbody.appendChild(hit2tr(hit));
             }
-
-            this._erddapClients.search(this.elements.search.value, onResultsChanged, onHit);
+            this._erddapClients.search({
+                search: this.elements.search.value, 
+                onResultStatusChanged: onResultsChanged,
+                onHit: onHit
+            });
 
         }
 
@@ -1054,7 +1056,6 @@
                 this.elements.testConnections.innerText = `Testing ${status.total} ERDDAP connections, waiting for ${status.remaining}`;
             }).then(() => {
                 this.elements.testConnections.style.display = 'none';
-                this.elements.searchForm.style.display = 'block';
             })
 
         }
@@ -1117,7 +1118,7 @@
             shadow.appendChild(this.container);
             this.rendered = false;
 
-            let scripts = [js_papaparse, js_markdownit, js_highlightjs, js_popper, `${script_src}zapidox.js?${new Date().getTime()}`];
+            let scripts = [js_papaparse, js_markdownit, js_highlightjs, js_popper, `${script_src}zapidox.js?2020-07-20`];
             shadow.appendChildScripts(scripts).then(() => this.render());
 
         }
