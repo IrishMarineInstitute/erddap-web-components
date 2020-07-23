@@ -3,6 +3,7 @@
   <head>
     <meta charset="utf-8">
     <title>ERDDAP Web Components</title>
+    <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.7.2/css/all.css" crossorigin="anonymous">
     <script src="src/erddap-client.js"></script>
     <script src="src/erddap-web-components.js"></script>
   </head>
@@ -21,7 +22,11 @@
         <erddap-dataset-info-table id="edit1"></erddap-dataset-info-table>
     <erddap-dataset-api dataset-url="https://erddap.marine.ie/erddap/info/IMI-WaveBuoyForecast"></erddap-dataset-api>
     -->
-        <erddap-multi-server-search></erddap-multi-server-search>
+        <erddap-multi-server-search>
+            <!--
+            <option value="https://erddap.marine.ie/erddap">Marine Institute Erddap</option>
+        -->
+        </erddap-multi-server-search>
     <!--
         <script>
             document.getElementById("ess1").addEventListener('change',(e)=>{

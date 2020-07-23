@@ -575,6 +575,7 @@
         let link = document.createElement("link");
         link.setAttribute("rel", "stylesheet");
         link.setAttribute("href", href);
+        link.setAttribute("crossorigin","anonymous")
         return link;
     }
     ShadowRoot.prototype.appendChildScript = function(src, inline) {
