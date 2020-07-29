@@ -78,6 +78,11 @@
         delete this.metadata[dataset_url];
         this.updateIOOSCategories();
     }
+    ErddapExplorer.prototype.clear = function(){
+        this.datasets = [];
+        this.metadata = {};
+        this.updateIOOSCategories();
+    }
     ErddapExplorer.prototype.updateIOOSCategories = function(){
         let ioos_categories = {};
         this.datasets.map(dataset_url => {

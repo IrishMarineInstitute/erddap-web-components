@@ -597,6 +597,7 @@
             testConnections: testConnections,
             searchForm: searchForm,
             searchDatasetsButton: searchDatasetsButton,
+            clearDatasetsButton: clearButton,
             search: search,
             searchResults: searchResults,
             categories: categories
@@ -1071,6 +1072,7 @@
             shadow.appendChild(stylesheet(ss_leaflet));
             shadow.appendChild(stylesheet(ss_bootstrap));
             shadow.appendChildScript(js_leaflet);
+            this.shadow = shadow;
             if (typeof(ErddapExplorer) !== 'undefined') {
                 let style = document.createElement("style");
                 style.setAttribute("type", "text/css");
@@ -1088,33 +1090,34 @@
                     input[type=checkbox].exclude:checked + label:before { content: "\\f057"; } /* checked icon */
             `;
                 shadow.appendChild(style);
-            }
-            this.explorer = new ErddapExplorer();
-            this.explorer.app_data.dropdowns = {};
-            this.explorer.on("categoriesChanged", (categories) => {
-                // hide dropdowns for any unused categories.
-                Object.keys(this.explorer.app_data.dropdowns).forEach(category => {
-                    if (!categories[category]) {
-                        this.explorer.app_data.dropdowns[category].style.display = "none";
-                    }
-                })
 
-                let container = shadow.getElementById("dataset_filters");
-                dropdownSelect(shadow, container, "IOOS Category",
-                    categories, (category) => {
-                        let variables = category.variables.reduce(function(map, variable) {
-                            map[variable.value] = variable;
-                            return map;
-                        }, {});
-                        let variablesDropdown = dropdownSelect(shadow, container, category.value, variables, (variable) => {
+                this.explorer = new ErddapExplorer();
+                this.explorer.app_data.dropdowns = {};
+                this.explorer.on("categoriesChanged", (categories) => {
+                    // hide dropdowns for any unused categories.
+                    Object.keys(this.explorer.app_data.dropdowns).forEach(category => {
+                        if (!categories[category]) {
+                            this.explorer.app_data.dropdowns[category].style.display = "none";
+                        }
+                    })
+
+                    let container = shadow.getElementById("dataset_filters");
+                    dropdownSelect(shadow, container, "IOOS Category",
+                        categories, (category) => {
+                            let variables = category.variables.reduce(function(map, variable) {
+                                map[variable.value] = variable;
+                                return map;
+                            }, {});
+                            let variablesDropdown = dropdownSelect(shadow, container, category.value, variables, (variable) => {
+                                filterDatasetResults(Object.values(categories));
+                            });
+                            this.explorer.app_data.dropdowns[category.value] = variablesDropdown;
+                            variablesDropdown.style.display = category.state === 1 ? "" : "none";
                             filterDatasetResults(Object.values(categories));
-                        });
-                        this.explorer.app_data.dropdowns[category.value] = variablesDropdown;
-                        variablesDropdown.style.display = category.state === 1 ? "" : "none";
-                        filterDatasetResults(Object.values(categories));
 
-                    });
-            });
+                        });
+                });
+            }
 
             this.elements = createSearchElements(this.explorer ? true : false);
             this.container = this.elements.container;
@@ -1154,7 +1157,7 @@
                                 }
                             });
                         }
-                        if(display === "none"){
+                        if (display === "none") {
                             break;
                         }
 
@@ -1168,6 +1171,10 @@
             this.elements.searchDatasetsButton.onclick = () => {
                 this.search();
             }
+            this.elements.clearDatasetsButton.onclick = () => {
+                this.elements.search.value = "";
+                this.search();
+            }
             this.elements.search.onkeydown = (e) => {
                 var evt = e || window.event;
                 if (evt.keyCode === 13) {
@@ -1177,6 +1184,26 @@
         }
 
         search() {
+            [this.elements.searchResults].map(el => {
+                while (el.firstChild) {
+                    el.removeChild(el.firstChild);
+                }
+            });
+            [this.shadow.getElementById("dataset_filters")].map(el => {
+                while (el.firstChild !== el.lastChild) {
+                    el.removeChild(el.lastChild);
+                }
+            });
+            if(this.explorer){
+                this.explorer.clear();
+            }
+
+            let searchQuery = this.elements.search.value || (this.explorer ? "time" : "");
+            if (!searchQuery.length) {
+                return;
+            }
+
+
             let hit2tr = o => {
                 let td = function(text) {
                     let el = document.createElement("td");
@@ -1264,16 +1291,13 @@
             let onResultsChanged = (x) => {
                 //console.log('changed', x)
             };
-            while (this.elements.searchResults.firstChild) {
-                this.elements.searchResults.removeChild(this.elements.searchResults.firstChild);
-            }
             let tbody = this.elements.searchResults;
             let table = tbody.closest("table");
             let onHit = (hit) => {
                 tbody.appendChild(hit2tr(hit));
             }
             this._erddapClients.search({
-                query: this.elements.search.value,
+                query: searchQuery,
                 onResultStatusChanged: onResultsChanged,
                 onHit: onHit
             });
@@ -1286,6 +1310,7 @@
                 this.elements.testConnections.innerText = `Testing ${status.total} ERDDAP connections, waiting for ${status.remaining}`;
             }).then(() => {
                 this.elements.testConnections.style.display = 'none';
+                this.search();
             })
 
         }
