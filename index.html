@@ -3,41 +3,15 @@
   <head>
     <meta charset="utf-8">
     <title>ERDDAP Web Components</title>
-    <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.7.2/css/all.css" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.8.2/css/all.css" crossorigin="anonymous">
     <script src="src/erddap-client.js"></script>
     <script src="src/erddap-web-components.js"></script>
+    <script src="src/erddap-explorer.js"></script>
   </head>
   <body>
         <h1>ERDDAP Web Components</h1>
-        <!--
-        <erddap-server-select id="ess1"
-            value="https://erddap.marine.ie/erddap/">
-        </erddap-server-select>
-        <erddap-dataset-select id="eds1"
-            erddap-server="https://erddap.marine.ie/erddap/" 
-            value="https://erddap.marine.ie/erddap/info/ais_met_hydro" 
-            dataset-search-filter="tabledap"
-            ></erddap-dataset-select>
-
-        <erddap-dataset-info-table id="edit1"></erddap-dataset-info-table>
-    <erddap-dataset-api dataset-url="https://erddap.marine.ie/erddap/info/IMI-WaveBuoyForecast"></erddap-dataset-api>
-    -->
         <erddap-multi-server-search>
-            <!--
             <option value="https://erddap.marine.ie/erddap">Marine Institute Erddap</option>
-        -->
         </erddap-multi-server-search>
-    <!--
-        <script>
-            document.getElementById("ess1").addEventListener('change',(e)=>{
-                document.getElementById("eds1").setAttribute("erddap-server",e.target.value);
-            });
-            function updateInfoTable(e){
-                document.getElementById("edit1").setAttribute("dataset-url",e.target.value)
-            }
-            document.getElementById("eds1").addEventListener('change',updateInfoTable);
-        </script>
-    -->
-    <script src="https://stackpath.bootstrapcdn.com/bootstrap/5.0.0-alpha1/js/bootstrap.min.js"></script>
   </body>
 </html>
