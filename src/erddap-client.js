@@ -149,27 +149,50 @@
 	 * without overwhelming the ERDDAP servers.
 	 * TODO: politeness queue per ERDDAP server, not one overall.
 	 */
-	let PoliteFetcher = function(){
+	let PoliteFetcher = function() {
 		let _queue = [];
+		let _promises = {};
+		let _reject = {};
+		let _resolve = {};
 		let processing = 0;
 		let process = () => {
 			if (processing) return;
 			let url = _queue.shift();
 			if (url) {
 				++processing;
-				ErddapClient.fetchJsonp(url).finally(() => {
-					processing--;
-					setTimeout(process, 0)
-				});
+				ErddapClient.fetchJsonp(url)
+					.then(data => {
+						_resolve[url](data);
+					})
+					.catch(e => {
+						console.log(e);
+						if(_reject[url]){
+							_reject[url](e);
+						}
+					})
+					.finally(() => {
+						delete _promises[url];
+						delete _resolve[url];
+						delete _reject[url];
+						processing--;
+						setTimeout(process, 0)
+					});
 			}
 		}
 
 		this.enqueue = (url) => {
-			if (_queue.indexOf(url) >= 0) return;
-			_queue.push(url);
-			if (!processing) {
-				process();
+			let promise = _promises[url];
+			if (!promise) {
+				let fn = (resolve,reject)=>{
+					_resolve[url] = resolve;
+					_reject[url] = reject;
+				};
+				promise = new Promise(fn);
+				_promises[url] = promise;
+				_queue.push(url);
+				setTimeout(process, 0)
 			}
+			return promise;
 		}
 	}
 
@@ -191,6 +214,10 @@
 
 	ErddapClient.fetchJsonp = function(url, options) {
 		return datasetCache.getJSONP(url, options);
+	}
+
+	ErddapClient.politeFetchJsonp = function(url) {
+		return politeFetcher.enqueue(url);
 	}
 
 	ErddapClient.fetchAwesomeErddaps = () => {
@@ -492,7 +519,12 @@
 		return Promise.all(promises).then(() => this.erddaps);
 	}
 	ErddapClients.prototype.search = function(options) {
-		let {query, onResultStatusChanged, onHit, fetchMetadata} = options;
+		let {
+			query,
+			onResultStatusChanged,
+			onHit,
+			fetchMetadata
+		} = options;
 		let currentSearchId = ++this.searchId;
 		let startTime = (new Date()).getTime();
 		let erddaps = this.erddaps.filter(function(erddap) {
@@ -526,8 +558,8 @@
 					++nerddapResults;
 					while (result.length) {
 						let data = result.shift();
-						if(fetchMetadata) politeFetcher.enqueue(data.Info);
-						if(onHit){
+						if (fetchMetadata) politeFetcher.enqueue(data.Info);
+						if (onHit) {
 							setTimeout(() => {
 								onHit(data)
 							}, 0)

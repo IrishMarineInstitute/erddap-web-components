@@ -13,7 +13,7 @@
         console.log("erddap-client.js must be loaded before erddap-web-components.js");
     }
 
-    const ss_fontawesome = "https://use.fontawesome.com/releases/v5.7.2/css/all.css";
+    const ss_fontawesome = "https://use.fontawesome.com/releases/v5.8.2/css/all.css";
     const ss_leaflet = "https://unpkg.com/leaflet@1.6.0/dist/leaflet.css";
     const ss_bootstrap = "https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/css/bootstrap.min.css";
     //const ss_bootstrap = "https://stackpath.bootstrapcdn.com/bootstrap/5.0.0-alpha1/css/bootstrap.min.css";
@@ -91,10 +91,10 @@
                 featureType: datatype,
                 infoUrl: url,
                 institution: { //TODO: move to config file
-                    "Marine Institute": "<img height='16' src='mi_logo_bw.png' alt='Marine Institute' /> ",
+                    "Marine Institute": "<i class='fas fa-university'></i> ",
                 },
                 license: { //TODO: move to config file
-                    "Creative Commons Attribution 4.0": "<img height='16' src='cc-by-attribution.png' alt='CC BY' /> "
+                    "Creative Commons Attribution 4.0": "<i class='fas fa-creative-commons'></i> "
                 },
                 projection_type: {
                     "map": '<i class="fas fa-map"></i> '
@@ -286,7 +286,7 @@
                     let v = meta.info[_type][fieldname];
                     let attr = meta.info.attribute[fieldname];
                     let comment = attr.Comment ? attr.Comment.value : (attr.long_name ? attr.long_name.value.indexOf(' ') > 0 ? attr.long_name.value : "" : "");
-                    let ioos_category  = attr.ioos_category ? attr.ioos_category.value : "";
+                    let ioos_category = attr.ioos_category ? attr.ioos_category.value : "";
                     let tr1 = document.createElement("tr");
                     tr1.appendChild(createElement("td", {}, fieldname))
                     tr1.appendChild(createElement("td", {}, ioos_category))
@@ -303,7 +303,7 @@
 
 
 
-    function createSearchElements() {
+    function createSearchElements(includeExplorerComponents) {
         let div1 = document.createElement("div");
         div1.setAttribute("class", "container");
         let searchArea = document.createElement("div");
@@ -319,7 +319,7 @@
         a.setAttribute("title", "find out more...");
         a.appendChild(document.createTextNode("ERDDAP"));
         datasets.appendChild(a)
-        datasets.appendChild(document.createTextNode(" Dataset Discovery "));
+        datasets.appendChild(document.createTextNode(` Dataset ${includeExplorerComponents?"Explorer":"Discovery"} `));
         let showSettingsLink = document.createElement("a");
         showSettingsLink.setAttribute("href", "#settings");
         showSettingsLink.setAttribute("title", "Click to configure settings");
@@ -367,11 +367,44 @@
         let searchInfo = document.createElement("div");
         searchInfo.setAttribute("class", "row");
         searchInfo.setAttribute("id", "searchInfo");
-        div2.appendChild(searchInfo)
-        let searchResults = document.createElement("div");
-        searchResults.setAttribute("class", "row");
-        searchResults.setAttribute("id", "searchResults");
-        div2.appendChild(searchResults)
+        div2.appendChild(searchInfo);
+        let categories = false;
+        if (includeExplorerComponents) {
+            categories = createElement("div", {
+                class: "row",
+                id: "dataset_filters"
+            });
+            div2.appendChild(categories);
+        }
+        let searchResultsContainer = createElement("div", {
+            class: "row"
+        });
+
+        searchResultsContainer.appendChild(createElement("h5", {}, "Datasets"));
+        let table = createElement('table', {
+            class: "table table-sm"
+        });
+        let thead = document.createElement("thead");
+        table.appendChild(thead);
+        let tr = document.createElement("tr");
+        thead.appendChild(tr);
+
+        let th = function(text) {
+            let el = document.createElement("th");
+            el.setAttribute('scope', 'col');
+            el.appendChild(document.createTextNode(text));
+            return el;
+        }
+        tr.appendChild(th(""));
+        tr.appendChild(th("Title"));
+        tr.appendChild(th("Institution"));
+        tr.appendChild(th("Dataset"));
+        tr.appendChild(th(""));
+        let searchResults = document.createElement("tbody");
+        table.appendChild(searchResults);
+        searchResultsContainer.appendChild(table);
+
+        div2.appendChild(searchResultsContainer)
         searchArea.appendChild(div2)
         div1.appendChild(searchArea)
         let configurationArea = document.createElement("div");
@@ -565,17 +598,111 @@
             searchForm: searchForm,
             searchDatasetsButton: searchDatasetsButton,
             search: search,
-            searchResults: searchResults
+            searchResults: searchResults,
+            categories: categories
         };
     }
+    let formcheckCount = 0;
 
+    function dropdownSelect(shadowRoot, container, name, options, listener) {
+        let div_id = `dropdown-${name.replace(/\W/g,'')}`;
+        let checkboxes_id = `checkboxes-${div_id}`;
+        let div = shadowRoot.getElementById(div_id);
+        let checkboxes = shadowRoot.getElementById(checkboxes_id);
+        if (checkboxes) {
+            while (checkboxes.firstChild) {
+                checkboxes.removeChild(checkboxes.firstChild);
+            }
+        } else {
+            div = createElement("div", {
+                class: "btn-group",
+                id: div_id
+            });
+            let divlabel = createElement("button", {
+                class: "btn btn-secondary dropdown-toggle"
+            }, name);
+            checkboxes = createElement("div", {
+                tabindex: 100 + formcheckCount,
+                id: checkboxes_id,
+                class: "dropdown-menu",
+                style: "position: absolute; transform: translate3d(0px, 38px, 0px); top: 0px; left: 0px; will-change: transform;"
+            });
+            div.appendChild(divlabel);
+            div.appendChild(checkboxes);
+            divlabel.addEventListener("click", e => {
+                if (checkboxes.classList.contains("show")) {
+                    checkboxes.classList.remove("show");
+                } else {
+                    checkboxes.classList.add("show");
+                }
+            });
+            checkboxes.addEventListener("blur", e => checkboxes.classList.remove("show"));
+            container.appendChild(div);
+        }
+
+        let keys = Object.keys(options);
+        keys.sort();
+        keys.map(key => {
+            let option = options[key];
+            let formcheck = createElement("div", {
+                class: "form-check"
+            })
+            let settings = {
+                type: "checkbox",
+                value: option.value,
+                name: name,
+                id: `fc${++formcheckCount}`,
+                class: option.state < 0 ? "exclude" : ""
+            };
+            if (option.state) {
+                settings.checked = true;
+            }
+            let input = createElement("input", settings); //TODO: something more here
+            let label = createElement("label", {
+                class: "form-check-label",
+                for: `fc${formcheckCount}`,
+                title: "Click to include/exclude datasets"
+            }, key);
+            label.addEventListener('click', e => {
+                let state = option.state;
+                if (input.checked && !input.classList.contains("exclude")) {
+                    e.preventDefault();
+                    input.classList.add("exclude");
+                    label.setAttribute("title", `Datasets with this ${option.class} are excluded`);
+                    option.state = -1;
+                } else {
+                    if (input.checked) {
+                        input.classList.remove("exclude");
+                        label.setAttribute("title", "Click to include/exclude datasets");
+                        option.state = 0;
+                    } else {
+                        label.setAttribute("title", `Datasets without this ${option.class} are excluded`);
+                        state = "include"
+                        option.state = 1;
+                    }
+                }
+                if (listener) {
+                    setTimeout(() => {
+                        listener(option)
+                    }, 0)
+                }
+            })
+            formcheck.appendChild(input);
+            formcheck.appendChild(document.createTextNode(" "));
+            formcheck.appendChild(label);
+            checkboxes.appendChild(formcheck);
+        });
+
+        return div;
+
+    }
 
 
     function stylesheet(href) {
         let link = document.createElement("link");
         link.setAttribute("rel", "stylesheet");
         link.setAttribute("href", href);
-        link.setAttribute("crossorigin","anonymous")
+        link.setAttribute("crossorigin", "anonymous")
         return link;
     }
     ShadowRoot.prototype.appendChildScript = function(src, inline) {
@@ -913,7 +1040,7 @@
                     this.container.removeChild(this.container.firstChild);
                 }
                 ErddapClient.fetchDataset(dataset_url).then((dataset) => {
-                    if(dataset.dimensions){
+                    if (dataset.dimensions) {
                         this.container.appendChild(ErddapTools.fieldsTable(dataset, "dimension"))
                     }
                     this.container.appendChild(ErddapTools.fieldsTable(dataset, "variable"))
@@ -944,9 +1071,99 @@
             shadow.appendChild(stylesheet(ss_leaflet));
             shadow.appendChild(stylesheet(ss_bootstrap));
             shadow.appendChildScript(js_leaflet);
-            this.elements = createSearchElements();
+            if (typeof(ErddapExplorer) !== 'undefined') {
+                let style = document.createElement("style");
+                style.setAttribute("type", "text/css");
+                style.innerText = `
+                    input[type=checkbox] { display:none; } /* to hide the checkbox itself */
+                    input[type=checkbox] + label:before {
+                      font-family: "Font Awesome 5 Free";
+                      display: inline-block;
+                          font-style: normal;
+                        font-weight: normal;
+                    }
+
+                    input[type=checkbox] + label:before { content: "\\f111"; } /* unchecked icon */
+                    input[type=checkbox]:checked + label:before { content: "\\f058"; } /* checked icon */
+                    input[type=checkbox].exclude:checked + label:before { content: "\\f057"; } /* checked icon */
+            `;
+                shadow.appendChild(style);
+            }
+            this.explorer = new ErddapExplorer();
+            this.explorer.app_data.dropdowns = {};
+            this.explorer.on("categoriesChanged", (categories) => {
+                // hide dropdowns for any unused categories.
+                Object.keys(this.explorer.app_data.dropdowns).forEach(category => {
+                    if (!categories[category]) {
+                        this.explorer.app_data.dropdowns[category].style.display = "none";
+                    }
+                })
+
+                let container = shadow.getElementById("dataset_filters");
+                dropdownSelect(shadow, container, "IOOS Category",
+                    categories, (category) => {
+                        let variables = category.variables.reduce(function(map, variable) {
+                            map[variable.value] = variable;
+                            return map;
+                        }, {});
+                        let variablesDropdown = dropdownSelect(shadow, container, category.value, variables, (variable) => {
+                            filterDatasetResults(Object.values(categories));
+                        });
+                        this.explorer.app_data.dropdowns[category.value] = variablesDropdown;
+                        variablesDropdown.style.display = category.state === 1 ? "" : "none";
+                        filterDatasetResults(Object.values(categories));
+
+                    });
+            });
+
+            this.elements = createSearchElements(this.explorer ? true : false);
             this.container = this.elements.container;
             shadow.appendChild(this.container);
+            let filterDatasetResults = (categories) => {
+                let rows = this.elements.searchResults.closest("table").rows;
+                for (let row = 1; row < rows.length; row++) {
+                    let dataset_url = rows[row].getAttribute("dataset-url");
+                    let display = "table-row";
+                    for (let i = 0; i < categories.length; i++) {
+                        let category = categories[i];
+                        if (!category.state) continue;
+                        if (category.state < 0) { // exclude only these
+                            if (category.dataset_urls.indexOf(dataset_url) >= 0) {
+                                display = "none";
+                                break;
+                            }
+                        } else { // include only datasets with these
+                            if (category.dataset_urls.indexOf(dataset_url) < 0) {
+                                display = "none";
+                                break;
+                            }
+                            // were any specific variables included/excluded
+                            category.variables.map(variable => {
+                                if (!variable.state) return;
+                                if (variable.state < 0) { // these to be excluded
+                                    if (variable.dataset_urls.indexOf(dataset_url) >= 0) {
+                                        display = "none";
+                                        return;
+                                    }
+
+                                } else { // these must be included
+                                    if (variable.dataset_urls.indexOf(dataset_url) < 0) {
+                                        display = "none";
+                                        return;
+                                    }
+                                }
+                            });
+                        }
+                        if(display === "none"){
+                            break;
+                        }
+
+                    }
+                    //TODO: use css class instead
+                    rows[row].style.display = display;
+
+                }
+            }
             this._erddapConfigs = undefined;
             this.elements.searchDatasetsButton.onclick = () => {
                 this.search();
@@ -960,17 +1177,20 @@
         }
 
         search() {
-            let hit2tr = function(o) {
+            let hit2tr = o => {
                 let td = function(text) {
                     let el = document.createElement("td");
                     el.appendChild(document.createTextNode(text));
                     return el;
                 }
-                let el = createElement("tr",{class: "dataset", "dataset-url": o.Info});
+                let tr = createElement("tr", {
+                    class: "dataset",
+                    "dataset-url": o.Info
+                });
                 let expand = td("");
-                el.appendChild(expand);
-                el.appendChild(td(o.Title));
-                el.appendChild(td(o.Institution || ""));
+                tr.appendChild(expand);
+                tr.appendChild(td(o.Title));
+                tr.appendChild(td(o.Institution || ""));
                 if (o.Info) {
                     let e = document.createElement("td");
                     let link = document.createElement("a");
@@ -984,20 +1204,23 @@
                     e.appendChild(link);
                     e.appendChild(document.createElement("br"));
                     e.appendChild(document.createTextNode(link.hostname));
-                    el.appendChild(e);
-                    expand.innerText = "+";
+                    tr.appendChild(e);
                     expand.classList.add("btn");
-                    expand.classList.add("btn-primary");
+                    expand.classList.add(this.explorer ? "btn-outline-info" : "btn-info");
+                    let expandText = document.createTextNode("+");
+                    expand.appendChild(expandText);
                     expand.setAttribute("title", "Click to show dataset details");
                     expand.addEventListener("click", e => {
                         let idx = e.target.parentNode.rowIndex + 1;
-                        if (expand.innerText == "-") {
+                        if (tr.expanded) {
                             table.deleteRow(idx);
-                            expand.innerText = "+";
+                            tr.expanded = false;
+                            expandText.innerText = "+";
                             return;
                         }
                         let row = table.insertRow(idx);
-                        expand.innerText = "-";
+                        tr.expanded = true;
+                        expandText.innerText = "-";
                         let contents = td(""); //"...");
                         contents.setAttribute("colspan", 4);
                         row.appendChild(contents);
@@ -1010,41 +1233,47 @@
                         e.preventDefault();
 
                     });
+                    if (this.explorer) {
+                        ErddapClient.politeFetchJsonp(o.Info).then(data => {
+                            expand.classList.remove("btn-outline-info");
+                            expand.classList.add("btn-info");
+                        });
+                        this.explorer.addDataset(o.Info);
+                    }
                 }
-                return el;
+                if (this.explorer) {
+                    let trash = createElement("span", {
+                        class: "fa fa-trash"
+                    });
+                    let trashtd = createElement("td", {
+                        class: "btn btn-light"
+                    });
+                    trashtd.addEventListener("click", e => {
+                        if (tr.expanded) {
+                            table.deleteRow(tr.rowIndex + 1);
+                        }
+                        this.explorer.removeDataset(o.Info);
+                        table.deleteRow(tr.rowIndex);
+                    })
+                    trashtd.appendChild(trash);
+                    tr.appendChild(trashtd);
+                }
+                return tr;
 
             }
             let onResultsChanged = (x) => {
                 //console.log('changed', x)
             };
-
-            let table = document.createElement('table');
-            table.setAttribute("class", "table");
-            let thead = document.createElement("thead");
-            table.appendChild(thead);
-            let tr = document.createElement("tr");
-            thead.appendChild(tr);
             while (this.elements.searchResults.firstChild) {
                 this.elements.searchResults.removeChild(this.elements.searchResults.firstChild);
             }
-            this.elements.searchResults.appendChild(table);
-            let th = function(text) {
-                let el = document.createElement("th");
-                el.setAttribute('scope', 'col');
-                el.appendChild(document.createTextNode(text));
-                return el;
-            }
-            tr.appendChild(th(""));
-            tr.appendChild(th("Title"));
-            tr.appendChild(th("Institution"));
-            tr.appendChild(th("Dataset"));
-            let tbody = document.createElement("tbody");
-            table.appendChild(tbody);
+            let tbody = this.elements.searchResults;
+            let table = tbody.closest("table");
             let onHit = (hit) => {
                 tbody.appendChild(hit2tr(hit));
             }
             this._erddapClients.search({
-                query: this.elements.search.value, 
+                query: this.elements.search.value,
                 onResultStatusChanged: onResultsChanged,
                 onHit: onHit
             });
@@ -1217,18 +1446,18 @@
                 "class": "nav nav-tabs",
                 "role": "tablist"
             });
-            let tabs = [
-                {name: "Info",
+            let tabs = [{
+                name: "Info",
                 active: true,
-                element: "erddap-dataset-info-table"},
-                {name: "Fields",
+                element: "erddap-dataset-info-table"
+            }, {
+                name: "Fields",
                 element: "erddap-dataset-fields-table"
 
-                },{
-                    name: "API",
-                    element: "erddap-dataset-api"
-                } 
-            ];
+            }, {
+                name: "API",
+                element: "erddap-dataset-api"
+            }];
             tabs.map(tab => {
                 let li = createElement("li", {
                     "class": "nav-item",
@@ -1236,12 +1465,12 @@
                 });
 
                 let a = createElement("a", {
-                    "class": "nav-link"+(tab.active?" active":""),
+                    "class": "nav-link" + (tab.active ? " active" : ""),
                     "data-toggle": "tab",
                     "href": `#${link}-${tab.name.toLowerCase()}`,
                     "role": "tab",
                     "aria-controls": `${tab.name.toLowerCase()}`,
-                    "aria-selected": tab.active ? "true": "false"
+                    "aria-selected": tab.active ? "true" : "false"
                 }, tab.name);
                 li.appendChild(a)
                 ul.appendChild(li)
@@ -1254,7 +1483,7 @@
             });
             tabs.map(tab => {
                 let tabpane = createElement("div", {
-                    "class": "tab-pane fade" +(tab.active ? " active show" : ""),
+                    "class": "tab-pane fade" + (tab.active ? " active show" : ""),
                     "id": `${link}-${tab.name.toLowerCase()}`,
                     "role": "tabpanel",
                     "aria-labelledby": `${tab.name.toLowerCase()}-tab`
