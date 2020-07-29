@@ -81,6 +81,10 @@
     ErddapExplorer.prototype.clear = function(){
         this.datasets = [];
         this.metadata = {};
+        Object.values(category_variables).map(cat=>{
+            cat.state = 0;
+            cat.dataset_urls = [];
+        })
         this.updateIOOSCategories();
     }
     ErddapExplorer.prototype.updateIOOSCategories = function(){
