@@ -36,6 +36,14 @@
         this.variables = [];
         this.dataset_urls = [];
     }
+    const Year = function(year){
+        this.class = 'year';
+        this.year = year;
+        this.value = year;
+        this.state = 1;
+        this.dataset_urls = [];
+    }
+
     IOOSCategory.prototype.addVariable = function(variable){
         if(this.variables.indexOf(variable)<0){
             this.variables.push(variable);
@@ -46,16 +54,39 @@
         this.metadata = {};
         this.ioos_categories = {};
         this.callbacks = {
-            categoriesChanged: []
+            categoriesChanged: [],
+            datasetsIndexLoaded: [],
+            datasetsIndexUpdated: []
         };
         this.timeouts = {};
         this.app_data = {};
+        this.erddapClients = undefined;
+        this.datasetsIndex = undefined;
+        this.years = [];
+    }
+    ErddapExplorer.prototype.setErddapClients = function(erddapClients){
+        this.erddapClients = erddapClients;
+        this.erddapClients.loadDatasetsIndex().then(datasetsIndex=>{
+            if(!datasetsIndex){
+                console.log("datasetsIndex not loaded");
+                return;
+            }
+            this.datasetsIndex = datasetsIndex;
+            this.years = datasetsIndex.years.map(year=>new Year(year));
+            this.datasetsIndex.setBounds(undefined).then(yearmap=>{
+                this.years.forEach(year=>{
+                    year.dataset_urls = yearmap[year.year];
+                })
+                this._trigger("datasetsIndexUpdated",datasetsIndex);
+            })
+            this._trigger("datasetsIndexLoaded",datasetsIndex);
+        })
     }
     ErddapExplorer.prototype.on = function(e,fn){
         if(this.callbacks[e]){
             this.callbacks[e].push(fn);
         }else{
-            throw new Error(`There is no event for e`);
+            throw new Error(`There is no event for ${e}`);
         }
     }
     ErddapExplorer.prototype._trigger = function(type,e){

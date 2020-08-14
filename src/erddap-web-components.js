@@ -18,12 +18,14 @@
     const ss_bootstrap = "https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/css/bootstrap.min.css";
     //const ss_bootstrap = "https://stackpath.bootstrapcdn.com/bootstrap/5.0.0-alpha1/css/bootstrap.min.css";
     const ss_highlight = "https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@9.16.2/build/styles/default.min.css";
+    const ss_leaflet_areaselect = "https://cdn.jsdelivr.net/npm/leaflet-area-select-npm@2.0.1/dist/leaflet-areaselect.css";
 
     const js_papaparse = "https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.1.0/papaparse.min.js";
     const js_markdownit = "https://cdn.jsdelivr.net/npm/markdown-it@10.0.0/dist/markdown-it.min.js";
     const js_highlightjs = "https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@9.16.2/build/highlight.min.js";
     const js_popper = "https://cdn.jsdelivr.net/npm/popper.js@1.16.0/dist/umd/popper.min.js";
     const js_leaflet = "https://unpkg.com/leaflet@1.6.0/dist/leaflet.js";
+    const js_leaflet_areaselect = "https://cdn.jsdelivr.net/npm/leaflet-area-select-npm@2.0.1/dist/leaflet-areaselect.min.js";
 
     let mapId = 0;
     let createElement = (name, attrs, text) => {
@@ -358,15 +360,17 @@
         searchDatasetsButton.setAttribute("class", "btn btn-success");
         searchDatasetsButton.appendChild(document.createTextNode("Search"));
         searchForm.appendChild(searchDatasetsButton)
-        let clearButton = document.createElement("button");
-        clearButton.setAttribute("id", "clearButton");
-        clearButton.setAttribute("class", "btn btn-info");
+        let clearButton = createElement("button",{
+            id: "clearButton",
+            class: "btn btn-info"
+        });
         clearButton.appendChild(document.createTextNode("Clear"));
         searchForm.appendChild(clearButton)
         div2.appendChild(searchForm)
-        let searchInfo = document.createElement("div");
-        searchInfo.setAttribute("class", "row");
-        searchInfo.setAttribute("id", "searchInfo");
+        let searchInfo = createElement("div", {
+            "class": "row",
+            id: "searchInfo"
+        });
         div2.appendChild(searchInfo);
         let categories = false;
         if (includeExplorerComponents) {
@@ -375,7 +379,37 @@
                 id: "dataset_filters"
             });
             div2.appendChild(categories);
+
+
+                let mapDiv = createElement('div',{
+                    id: "explorerMap",
+                    style:  "height: 300px;"
+                });
+                div2.appendChild(mapDiv);
+                let loadMapAttempts = 100;
+                let loadMap = ()=>{
+                    if (typeof(L) === "undefined") {
+                        if(--loadMapAttempts > 0){
+                            setTimeout(loadMap,200);
+                        }else{
+                            console.log("giving up waiting for leaflet to load. No map will be shown.")
+                        }
+                        return;
+                    }
+                    var map = L.map(mapDiv, {
+                        attributionControl: false
+                    }).setView([0, 0], 1);
+                    L.control.attribution({
+                        position: "bottomleft"
+                    }).addTo(map);
+                    L.tileLayer('http://{s}.tile.osm.org/{z}/{x}/{y}.png', {
+                        attribution: '&copy; <a href="http://osm.org/copyright">OpenStreetMap</a> contributors'
+                    }).addTo(map);
+                
+                }
+                setTimeout(loadMap,200);
         }
+
         let searchResultsContainer = createElement("div", {
             class: "row"
         });
@@ -605,7 +639,7 @@
     }
     let formcheckCount = 0;
 
-    function dropdownSelect(shadowRoot, container, name, options, listener) {
+    function dropdownSelect(shadowRoot, container, threeway, allSelector, name, options, listener) {
         let div_id = `dropdown-${name.replace(/\W/g,'')}`;
         let checkboxes_id = `checkboxes-${div_id}`;
         let div = shadowRoot.getElementById(div_id);
@@ -626,7 +660,7 @@
                 tabindex: 100 + formcheckCount,
                 id: checkboxes_id,
                 class: "dropdown-menu",
-                style: "position: absolute; transform: translate3d(0px, 38px, 0px); top: 0px; left: 0px; will-change: transform;"
+                style: "position: absolute; transform: translate3d(0px, 38px, 0px); top: 0px; left: 0px; will-change: transform; z-index: 1100"
             });
             div.appendChild(divlabel);
             div.appendChild(checkboxes);
@@ -639,6 +673,78 @@
             });
             checkboxes.addEventListener("blur", e => checkboxes.classList.remove("show"));
             container.appendChild(div);
+        }
+        if(allSelector){
+            let option = {state: 0}
+            let formcheck = createElement("div", {
+                class: "form-check"
+            })
+            let settings = {
+                type: "checkbox",
+                value: option.value,
+                name: name,
+                id: `fc${++formcheckCount}`,
+                class: option.state < 0 ? "exclude" : "",
+                checked: true
+            };
+            let input = createElement("input", settings); //TODO: something more here
+            let label = createElement("label", {
+                class: "form-check-label",
+                for: `fc${formcheckCount}`,
+                title: "Select/unselect all"
+            }, "Select all");
+            label.addEventListener('click', e => {
+                let state = option.state;
+                if (threeway && input.checked && !input.classList.contains("exclude")) {
+                    e.preventDefault();
+                    input.classList.add("exclude");
+                    option.state = -1;
+                } else {
+                    if (input.checked) {
+                        input.classList.remove("exclude");
+                        option.state = 0;
+                    } else {
+                        state = "include"
+                        option.state = 1;
+                    }
+                }
+                Object.values(options).map(o=>{
+                    if(o.state !== option.state){
+                        o.state = option.state;
+                        switch(o.state){
+                            case -1:
+                                o.input.classList.add("exclude");
+                                o.input.checked = true;
+                                o.label.setAttribute("title", `Datasets with this ${o.class} are excluded`);
+                                break;
+                            case 0:
+                                o.input.classList.remove("exclude");
+                                o.input.checked = false;
+                                o.label.setAttribute("title", "Click to filter datasets");
+                                break;
+                            case 1:
+                                o.input.classList.remove("exclude");
+                                o.input.checked = true;
+                                o.label.setAttribute("title", `Datasets with${threeway?"out":""} this ${o.class} are ${threeway?"ex":"in"}cluded`);
+                                break;
+                            default:
+                                throw `unexpected state ${o.state}`
+
+                        }
+                    }
+                })
+                if (listener) {
+                    setTimeout(() => {
+                        listener(null)
+                    }, 0)
+                }
+
+            })
+            formcheck.appendChild(input);
+            formcheck.appendChild(document.createTextNode(" "));
+            formcheck.appendChild(label);
+            checkboxes.appendChild(formcheck);
+
         }
 
         let keys = Object.keys(options);
@@ -662,11 +768,13 @@
             let label = createElement("label", {
                 class: "form-check-label",
                 for: `fc${formcheckCount}`,
-                title: "Click to include/exclude datasets"
+                title: "Click to filter datasets"
             }, key);
+            option.input = input;
+            option.label = label;
             label.addEventListener('click', e => {
                 let state = option.state;
-                if (input.checked && !input.classList.contains("exclude")) {
+                if (threeway && input.checked && !input.classList.contains("exclude")) {
                     e.preventDefault();
                     input.classList.add("exclude");
                     label.setAttribute("title", `Datasets with this ${option.class} are excluded`);
@@ -674,10 +782,10 @@
                 } else {
                     if (input.checked) {
                         input.classList.remove("exclude");
-                        label.setAttribute("title", "Click to include/exclude datasets");
+                        label.setAttribute("title", "Click to filter datasets");
                         option.state = 0;
                     } else {
-                        label.setAttribute("title", `Datasets without this ${option.class} are excluded`);
+                         label.setAttribute("title", `Datasets with${threeway?"out":""} this ${option.class} are ${threeway?"ex":"in"}cluded`);
                         state = "include"
                         option.state = 1;
                     }
@@ -1074,6 +1182,8 @@
             shadow.appendChildScript(js_leaflet);
             this.shadow = shadow;
             if (typeof(ErddapExplorer) !== 'undefined') {
+                shadow.appendChild(stylesheet(ss_leaflet_areaselect))
+                shadow.appendChildScript(js_leaflet).then(x=>shadow.appendChildScript(js_leaflet_areaselect))
                 let style = document.createElement("style");
                 style.setAttribute("type", "text/css");
                 style.innerText = `
@@ -1102,27 +1212,40 @@
                     })
 
                     let container = shadow.getElementById("dataset_filters");
-                    dropdownSelect(shadow, container, "IOOS Category",
+                    dropdownSelect(shadow, container, true, false, "IOOS Category",
                         categories, (category) => {
                             let variables = category.variables.reduce(function(map, variable) {
                                 map[variable.value] = variable;
                                 return map;
                             }, {});
-                            let variablesDropdown = dropdownSelect(shadow, container, category.value, variables, (variable) => {
-                                filterDatasetResults(Object.values(categories));
+                            let variablesDropdown = dropdownSelect(shadow, container, true, false, category.value, variables, (variable) => {
+                                filterDatasetResults(this.explorer);
                             });
                             this.explorer.app_data.dropdowns[category.value] = variablesDropdown;
                             variablesDropdown.style.display = category.state === 1 ? "" : "none";
-                            filterDatasetResults(Object.values(categories));
+                            filterDatasetResults(this.explorer);
 
                         });
+                });
+                this.explorer.on("datasetsIndexLoaded",(datasetsIndex)=>{
+                    let years = this.explorer.years.reduce(function(map, year) {
+                                map[year.value] = year;
+                                return map;
+                            }, {});
+                    let container = shadow.getElementById("dataset_filters");
+                    dropdownSelect(shadow, container, false, true, "Year", years, ()=>{
+                        filterDatasetResults(this.explorer)
+                    })
                 });
             }
 
             this.elements = createSearchElements(this.explorer ? true : false);
             this.container = this.elements.container;
             shadow.appendChild(this.container);
-            let filterDatasetResults = (categories) => {
+            let filterDatasetResults = (explorer) => {
+                let categories = Object.values(explorer.ioos_categories);
+                let years = explorer.years.filter(year=>year.state === 1);
+                let filterByYears = years.length > 0;
                 let rows = this.elements.searchResults.closest("table").rows;
                 for (let row = 1; row < rows.length; row++) {
                     let dataset_url = rows[row].getAttribute("dataset-url");
@@ -1161,6 +1284,16 @@
                             break;
                         }
 
+                    }
+                    if(filterByYears && (display !== "none")){
+                        display = "none";
+                        for(let i = 0; i< years.length; i++){
+                            if(years[i].dataset_urls.indexOf(dataset_url) >= 0){
+                                display = "table-row";
+                                break;
+                            }
+
+                        }
                     }
                     //TODO: use css class instead
                     rows[row].style.display = display;
@@ -1311,6 +1444,10 @@
             }).then(() => {
                 this.elements.testConnections.style.display = 'none';
                 this.search();
+                //TODO:
+                if(this.explorer){
+                    this.explorer.setErddapClients(this._erddapClients);
+                }
             })
 
         }

@@ -198,6 +198,100 @@
 
 	let politeFetcher = new PoliteFetcher();
 
+	const DatasetsIndex = function(erddapClient){
+		this.erddapClient = erddapClient;
+		this.years = [];
+		this.indices = [];
+		this.yearmap = [];
+	}
+
+	DatasetsIndex.prototype.load = function(){
+		if(!this.erddapClient){
+			throw("Cannot call load on DatasetsIndex not created with an ErddapCliuent")
+		}
+		return this.erddapClient.getDataset("datasetsIndex")
+			.fetchData("year&distinct()").then(data=>{
+				this.years = data.map(r=>r.year);
+				return this;
+			})
+
+	}
+
+	DatasetsIndex.prototype.add = function(datasetIndex){
+		if(this.erddapClient){
+			throw("Cannot call add on DatasetsIndex created with an ErddapCliuent")
+		}
+		this.indices.push(datasetIndex)
+		let years = this.years.concat(datasetIndex.years);
+		this.years = years.filter((v,i)=>years.indexOf(v) === i);
+		this.years.sort();
+		this.yearmap = {};
+		this.years.map(year=>this.yearmap[year] = []);
+	}
+
+	const fixLonRange = function(lon){
+		while(lon<-180){
+			lon += 360;
+		}
+		while(lon>180){
+			lon -= 360;
+		}
+		return lon;
+	}
+
+	const boundsToDap = function(latLngBounds){
+		if(!latLngBounds){
+			return [""];
+		}
+		swlat = latLngBounds.getSouthWest().lat;
+		swlon =fixLonRange(latLngBounds.getSouthWest().lon);
+		nelat = latLngBounds.getNorthEast().lat;
+		nelon = fixLonRange(latLngBounds.getNorthEast().lon);
+		if(swlat > nelat || swlat < -90 || nelat > 90){
+			throw(`out of bounds lat range ${swlat}-${nelat}`)
+		}
+		let latdap = `latitude>=${swlat}&latitude<=${nelat}`; 
+		if(swlon<=nelon){
+			return [`&${latdap}&longitude>=${swlon}&longitude<=${nelon}`]
+		}else{
+			return [`&${latdap}&longitude>=${swlon}&longitude<=180`,`&${latdap}&longitude>=-180&longitude<=${nelon}`]
+		}
+
+	}
+
+	DatasetsIndex.prototype.setBounds = function(latLngBounds){
+		if(this.erddapClient){
+			return Promise.all(boundsToDap(latLngBounds).map(dap=>
+				this.erddapClient.getDataset("datasetsIndex")
+				.fetchData(`year,dataset_id${dap}&distinct()`)))
+			.then(datas=>{
+					let results = {};
+					this.years.map(year=>results[year] = []);
+					datas.map(data=>{
+						data.map(row=>{
+							results[row.year].push(this.erddapClient.getDataset(row.dataset_id).datasetUrl()+"/index.json");
+						})
+					})
+					this.yearmap = results;
+					return results;
+				})
+
+		}
+		return Promise.all(this.indices.map(x=>x.setBounds(latLngBounds))).then(maps=>{
+			let results = {};
+			this.years.map(year=>results[year] = []);
+			maps.map(map=>{
+				Object.keys(map).forEach(year=>{
+					map[year].map(dataset_url=>{
+						results[year].push(dataset_url)
+					})
+				})
+			})
+			this.yearmap = results;
+			return results;
+		})
+	}
+
 	const ErddapClient = function(settings) {
 		if (typeof(settings) === "string") {
 			settings = {
@@ -581,6 +675,32 @@
 			search(erddap);
 		}
 		erddaps.forEach(search);
+	}
+	ErddapClient.prototype.loadDatasetsIndex = function(){
+		let datasetsIndex = new DatasetsIndex(this);
+		return datasetsIndex.load().catch(e=>{
+			console.log("datasetsIndex not loaded for "+this.endpoint);
+			return undefined;
+		})
+	}
+	ErddapClients.prototype.loadDatasetsIndex = function(){
+		let promises = this.erddaps.map((erddap) =>
+			erddap.loadDatasetsIndex()
+		);
+		return Promise.all(promises).then((indices) => {
+			let datasetsIndex = new DatasetsIndex();
+			for(let i=0;i<indices.length;i++){
+				if(!indices[i]){
+					return null;
+				}
+				datasetsIndex.add(indices[i]);
+			}
+
+			return datasetsIndex;
+
+		});
+
+
 	}
 	return [ErddapClient, ErddapClients];
 })));
