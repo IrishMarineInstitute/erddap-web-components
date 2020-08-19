@@ -18,14 +18,14 @@
     const ss_bootstrap = "https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/css/bootstrap.min.css";
     //const ss_bootstrap = "https://stackpath.bootstrapcdn.com/bootstrap/5.0.0-alpha1/css/bootstrap.min.css";
     const ss_highlight = "https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@9.16.2/build/styles/default.min.css";
-    const ss_leaflet_areaselect = "https://cdn.jsdelivr.net/npm/leaflet-area-select-npm@2.0.1/dist/leaflet-areaselect.css";
+    const ss_leaflet_draw = "https://cdn.jsdelivr.net/npm/leaflet-draw@1.0.4/dist/leaflet.draw.min.css";
 
     const js_papaparse = "https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.1.0/papaparse.min.js";
     const js_markdownit = "https://cdn.jsdelivr.net/npm/markdown-it@10.0.0/dist/markdown-it.min.js";
     const js_highlightjs = "https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@9.16.2/build/highlight.min.js";
     const js_popper = "https://cdn.jsdelivr.net/npm/popper.js@1.16.0/dist/umd/popper.min.js";
     const js_leaflet = "https://unpkg.com/leaflet@1.6.0/dist/leaflet.js";
-    const js_leaflet_areaselect = "https://cdn.jsdelivr.net/npm/leaflet-area-select-npm@2.0.1/dist/leaflet-areaselect.min.js";
+    const js_leaflet_draw = "https://cdn.jsdelivr.net/npm/leaflet-draw@1.0.4/dist/leaflet.draw.min.js";
 
     let mapId = 0;
     let createElement = (name, attrs, text) => {
@@ -305,7 +305,7 @@
 
 
 
-    function createSearchElements(includeExplorerComponents) {
+    function createSearchElements(explorer) {
         let div1 = document.createElement("div");
         div1.setAttribute("class", "container");
         let searchArea = document.createElement("div");
@@ -321,7 +321,7 @@
         a.setAttribute("title", "find out more...");
         a.appendChild(document.createTextNode("ERDDAP"));
         datasets.appendChild(a)
-        datasets.appendChild(document.createTextNode(` Dataset ${includeExplorerComponents?"Explorer":"Discovery"} `));
+        datasets.appendChild(document.createTextNode(` Dataset ${explorer?"Explorer":"Discovery"} `));
         let showSettingsLink = document.createElement("a");
         showSettingsLink.setAttribute("href", "#settings");
         showSettingsLink.setAttribute("title", "Click to configure settings");
@@ -360,7 +360,7 @@
         searchDatasetsButton.setAttribute("class", "btn btn-success");
         searchDatasetsButton.appendChild(document.createTextNode("Search"));
         searchForm.appendChild(searchDatasetsButton)
-        let clearButton = createElement("button",{
+        let clearButton = createElement("button", {
             id: "clearButton",
             class: "btn btn-info"
         });
@@ -373,7 +373,7 @@
         });
         div2.appendChild(searchInfo);
         let categories = false;
-        if (includeExplorerComponents) {
+        if (explorer) {
             categories = createElement("div", {
                 class: "row",
                 id: "dataset_filters"
@@ -381,33 +381,92 @@
             div2.appendChild(categories);
 
 
-                let mapDiv = createElement('div',{
-                    id: "explorerMap",
-                    style:  "height: 300px;"
-                });
-                div2.appendChild(mapDiv);
-                let loadMapAttempts = 100;
-                let loadMap = ()=>{
-                    if (typeof(L) === "undefined") {
-                        if(--loadMapAttempts > 0){
-                            setTimeout(loadMap,200);
-                        }else{
-                            console.log("giving up waiting for leaflet to load. No map will be shown.")
+            let mapDiv = createElement('div', {
+                id: "explorerMap",
+                style: "height: 300px;"
+            });
+            div2.appendChild(mapDiv);
+            let loadMapAttempts = 100;
+            let loadMap = () => {
+                if (typeof(L) === "undefined") {
+                    if (--loadMapAttempts > 0) {
+                        setTimeout(loadMap, 200);
+                    } else {
+                        console.log("giving up waiting for leaflet to load. No map will be shown.")
+                    }
+                    return;
+                }
+                var map = L.map(mapDiv, {
+                    attributionControl: false
+                }).setView([0, 0], 1);
+                L.control.attribution({
+                    position: "bottomleft"
+                }).addTo(map);
+                L.tileLayer('http://{s}.tile.osm.org/{z}/{x}/{y}.png', {
+                    attribution: '&copy; <a href="http://osm.org/copyright">OpenStreetMap</a> contributors'
+                }).addTo(map);
+                let loadDrawControlAttempts = 100;
+                let loadDrawControl = () => {
+                    if (typeof(L.Control.Draw) === "undefined") {
+                        if (--loadDrawControlAttempts > 0) {
+                            setTimeout(loadDrawControl, 200);
+                        } else {
+                            console.log("giving up waiting for leaflet to load. No draw control will be shown.")
                         }
                         return;
                     }
-                    var map = L.map(mapDiv, {
-                        attributionControl: false
-                    }).setView([0, 0], 1);
-                    L.control.attribution({
-                        position: "bottomleft"
-                    }).addTo(map);
-                    L.tileLayer('http://{s}.tile.osm.org/{z}/{x}/{y}.png', {
-                        attribution: '&copy; <a href="http://osm.org/copyright">OpenStreetMap</a> contributors'
-                    }).addTo(map);
-                
+                    var drawnItems = new L.FeatureGroup();
+                    map.addLayer(drawnItems);
+                    console.log(L.drawLocal)
+                    L.drawLocal.draw.toolbar.buttons.rectangle = "Mark area of interest";
+                    L.drawLocal.edit.toolbar.buttons.edit = "Edit area of interest";
+                    L.drawLocal.edit.toolbar.buttons.editDisabled = "No area of interest to edit";
+                    L.drawLocal.edit.toolbar.buttons.remove = "Remove area of interest";
+                    L.drawLocal.edit.toolbar.buttons.removeDisabled = "No area of interest to remove";
+                    L.drawLocal.draw.handlers.rectangle.tooltip.start = "Click and drag to mark area of interest"
+                    L.EditToolbar.Delete.include({
+                        enable: function() {
+                            drawnItems.clearLayers();
+                            explorer.setBounds();
+                        }
+                    })
+                    let drawControl = new L.Control.Draw({
+                        draw: {
+                            polyline: false,
+                            polygon: false,
+                            marker: false,
+                            circle: false,
+                            circlemarker: false
+                        },
+                        edit: {
+                            featureGroup: drawnItems
+                        }
+
+                    });
+                    map.addControl(drawControl);
+                    map.on(L.Draw.Event.CREATED, function(event) {
+                        drawnItems.clearLayers();
+                        let polygon = L.polygon([
+                            [
+                                [90, -18000],
+                                [90, 18000],
+                                [-90, 18000],
+                                [-90, -18000]
+                            ],
+                            event.layer.getLatLngs()
+                        ])
+                        drawnItems.addLayer(polygon);
+                        let bounds = event.layer.getBounds();
+                        map.fitBounds(bounds)
+                        explorer.setBounds(bounds);
+                    });
+
                 }
-                setTimeout(loadMap,200);
+                setTimeout(loadDrawControl, 100);
+
+
+            }
+            setTimeout(loadMap, 200);
         }
 
         let searchResultsContainer = createElement("div", {
@@ -645,8 +704,8 @@
         let div = shadowRoot.getElementById(div_id);
         let checkboxes = shadowRoot.getElementById(checkboxes_id);
         if (checkboxes) {
-            while (checkboxes.firstChild) {
-                checkboxes.removeChild(checkboxes.firstChild);
+            while (checkboxes.lastChild && !checkboxes.lastChild.sticky) {
+                checkboxes.removeChild(checkboxes.lastChild);
             }
         } else {
             div = createElement("div", {
@@ -674,77 +733,118 @@
             checkboxes.addEventListener("blur", e => checkboxes.classList.remove("show"));
             container.appendChild(div);
         }
-        if(allSelector){
-            let option = {state: 0}
-            let formcheck = createElement("div", {
-                class: "form-check"
-            })
-            let settings = {
-                type: "checkbox",
-                value: option.value,
-                name: name,
-                id: `fc${++formcheckCount}`,
-                class: option.state < 0 ? "exclude" : "",
+        if (allSelector) {
+            div.mode = "any";
+            [{
+                mode: "any",
+                text: `Datasets with any selected ${name}`,
                 checked: true
-            };
-            let input = createElement("input", settings); //TODO: something more here
-            let label = createElement("label", {
-                class: "form-check-label",
-                for: `fc${formcheckCount}`,
-                title: "Select/unselect all"
-            }, "Select all");
-            label.addEventListener('click', e => {
-                let state = option.state;
-                if (threeway && input.checked && !input.classList.contains("exclude")) {
-                    e.preventDefault();
-                    input.classList.add("exclude");
-                    option.state = -1;
-                } else {
-                    if (input.checked) {
-                        input.classList.remove("exclude");
-                        option.state = 0;
-                    } else {
-                        state = "include"
-                        option.state = 1;
-                    }
-                }
-                Object.values(options).map(o=>{
-                    if(o.state !== option.state){
-                        o.state = option.state;
-                        switch(o.state){
-                            case -1:
-                                o.input.classList.add("exclude");
-                                o.input.checked = true;
-                                o.label.setAttribute("title", `Datasets with this ${o.class} are excluded`);
-                                break;
-                            case 0:
-                                o.input.classList.remove("exclude");
-                                o.input.checked = false;
-                                o.label.setAttribute("title", "Click to filter datasets");
-                                break;
-                            case 1:
-                                o.input.classList.remove("exclude");
-                                o.input.checked = true;
-                                o.label.setAttribute("title", `Datasets with${threeway?"out":""} this ${o.class} are ${threeway?"ex":"in"}cluded`);
-                                break;
-                            default:
-                                throw `unexpected state ${o.state}`
-
+            }, {
+                mode: "all",
+                text: `Datasets with every selected ${name}`
+            }].map(el => {
+                let formcheck = createElement("div", {
+                    class: "form-check"
+                })
+                let label = createElement("label", {
+                    class: "form-check-label",
+                    for: `mode{$name}${el.mode}`
+                }, el.text);
+                let input = createElement("input", {
+                    type: "radio",
+                    class: "form-check-input",
+                    name: `mode${name}`,
+                    id: `mode{$name}${el.mode}`,
+                    value: el.mode
+                })
+                input.addEventListener('change', function() {
+                    if (this.checked) {
+                        div.mode = el.mode;
+                        if (listener) {
+                            setTimeout(listener, 0);
                         }
                     }
                 })
-                if (listener) {
-                    setTimeout(() => {
-                        listener(null)
-                    }, 0)
+                if (el.checked) {
+                    input.setAttribute("checked", true);
                 }
+                formcheck.appendChild(input);
+                formcheck.appendChild(label);
+                checkboxes.appendChild(formcheck);
+                formcheck.sticky = true;
+            });
 
-            })
-            formcheck.appendChild(input);
-            formcheck.appendChild(document.createTextNode(" "));
-            formcheck.appendChild(label);
-            checkboxes.appendChild(formcheck);
+            { // select/unselect all.
+                let option = {
+                    state: 0
+                }
+                let formcheck = createElement("div", {
+                    class: "form-check"
+                })
+                let settings = {
+                    type: "checkbox",
+                    value: option.value,
+                    name: name,
+                    id: `fc${++formcheckCount}`,
+                    class: option.state < 0 ? "exclude" : "",
+                    checked: true
+                };
+                let input = createElement("input", settings); //TODO: something more here
+                let label = createElement("label", {
+                    class: "form-check-label",
+                    for: `fc${formcheckCount}`,
+                    title: "Select/unselect all"
+                }, "Select all");
+                label.addEventListener('click', e => {
+                    let state = option.state;
+                    if (threeway && input.checked && !input.classList.contains("exclude")) {
+                        e.preventDefault();
+                        input.classList.add("exclude");
+                        option.state = -1;
+                    } else {
+                        if (input.checked) {
+                            input.classList.remove("exclude");
+                            option.state = 0;
+                        } else {
+                            state = "include"
+                            option.state = 1;
+                        }
+                    }
+                    Object.values(options).map(o => {
+                        if (o.state !== option.state) {
+                            o.state = option.state;
+                            switch (o.state) {
+                                case -1:
+                                    o.input.classList.add("exclude");
+                                    o.input.checked = true;
+                                    o.label.setAttribute("title", `Datasets with this ${o.class} are excluded`);
+                                    break;
+                                case 0:
+                                    o.input.classList.remove("exclude");
+                                    o.input.checked = false;
+                                    o.label.setAttribute("title", "Click to filter datasets");
+                                    break;
+                                case 1:
+                                    o.input.classList.remove("exclude");
+                                    o.input.checked = true;
+                                    o.label.setAttribute("title", `Datasets with${threeway?"out":""} this ${o.class} are ${threeway?"ex":"in"}cluded`);
+                                    break;
+                                default:
+                                    throw `unexpected state ${o.state}`
 
+                            }
+                        }
+                    })
+                    if (listener) {
+                        setTimeout(listener, 0);
+                    }
+
+                })
+                formcheck.appendChild(input);
+                formcheck.appendChild(document.createTextNode(" "));
+                formcheck.appendChild(label);
+                checkboxes.appendChild(formcheck);
+            }
         }
 
         let keys = Object.keys(options);
@@ -785,7 +885,7 @@
                         label.setAttribute("title", "Click to filter datasets");
                         option.state = 0;
                     } else {
-                         label.setAttribute("title", `Datasets with${threeway?"out":""} this ${option.class} are ${threeway?"ex":"in"}cluded`);
+                        label.setAttribute("title", `Datasets with${threeway?"out":""} this ${option.class} are ${threeway?"ex":"in"}cluded`);
                         state = "include"
                         option.state = 1;
                     }
@@ -1181,9 +1281,14 @@
             shadow.appendChild(stylesheet(ss_bootstrap));
             shadow.appendChildScript(js_leaflet);
             this.shadow = shadow;
+            this.search_hits = [];
+            this.filters = {
+                accepts: () => true
+            }
+
             if (typeof(ErddapExplorer) !== 'undefined') {
-                shadow.appendChild(stylesheet(ss_leaflet_areaselect))
-                shadow.appendChildScript(js_leaflet).then(x=>shadow.appendChildScript(js_leaflet_areaselect))
+                shadow.appendChild(stylesheet(ss_leaflet_draw))
+                shadow.appendChildScript(js_leaflet).then(x => shadow.appendChildScript(js_leaflet_draw))
                 let style = document.createElement("style");
                 style.setAttribute("type", "text/css");
                 style.innerText = `
@@ -1212,7 +1317,7 @@
                     })
 
                     let container = shadow.getElementById("dataset_filters");
-                    dropdownSelect(shadow, container, true, false, "IOOS Category",
+                    let ioosCategorySelect = dropdownSelect(shadow, container, true, false, "IOOS Category",
                         categories, (category) => {
                             let variables = category.variables.reduce(function(map, variable) {
                                 map[variable.value] = variable;
@@ -1226,25 +1331,36 @@
                             filterDatasetResults(this.explorer);
 
                         });
+                    ioosCategorySelect.sticky = true;
                 });
-                this.explorer.on("datasetsIndexLoaded",(datasetsIndex)=>{
+                this.explorer.on("datasetsIndexLoaded", (datasetsIndex) => {
                     let years = this.explorer.years.reduce(function(map, year) {
-                                map[year.value] = year;
-                                return map;
-                            }, {});
+                        map[year.value] = year;
+                        return map;
+                    }, {});
                     let container = shadow.getElementById("dataset_filters");
-                    dropdownSelect(shadow, container, false, true, "Year", years, ()=>{
+                    let yearsSelect = dropdownSelect(shadow, container, false, true, "Year", years, () => {
+                        this.explorer.yearsMode = yearsSelect.mode;
                         filterDatasetResults(this.explorer)
                     })
+                    yearsSelect.sticky = true;
+                    // let's put it first.
+                    if (container.firstChild !== yearsSelect) {
+                        container.removeChild(yearsSelect);
+                        container.insertBefore(yearsSelect, container.firstChild);
+                    }
+                });
+                this.explorer.on("datasetsIndexUpdated", (datasetsIndex) => {
+                    filterDatasetResults(this.explorer);
                 });
             }
 
-            this.elements = createSearchElements(this.explorer ? true : false);
+            this.elements = createSearchElements(this.explorer);
             this.container = this.elements.container;
             shadow.appendChild(this.container);
             let filterDatasetResults = (explorer) => {
                 let categories = Object.values(explorer.ioos_categories);
-                let years = explorer.years.filter(year=>year.state === 1);
+                let years = explorer.years.filter(year => year.state === 1);
                 let filterByYears = years.length > 0;
                 let rows = this.elements.searchResults.closest("table").rows;
                 for (let row = 1; row < rows.length; row++) {
@@ -1285,12 +1401,21 @@
                         }
 
                     }
-                    if(filterByYears && (display !== "none")){
+                    if (filterByYears && (display !== "none")) {
                         display = "none";
-                        for(let i = 0; i< years.length; i++){
-                            if(years[i].dataset_urls.indexOf(dataset_url) >= 0){
+                        for (let i = 0; i < years.length; i++) {
+                            if (explorer.yearsMode === "any" && years[i].dataset_urls.indexOf(dataset_url) >= 0) {
                                 display = "table-row";
                                 break;
+                            }
+                            if (explorer.yearsMode === "all") {
+                                if (years[i].dataset_urls.indexOf(dataset_url) < 0) {
+                                    break;
+                                }
+                                if (i === years.length - 1) {
+                                    display = "table-row";
+                                }
+
                             }
 
                         }
@@ -1318,16 +1443,16 @@
 
         search() {
             [this.elements.searchResults].map(el => {
-                while (el.firstChild) {
-                    el.removeChild(el.firstChild);
-                }
-            });
-            [this.shadow.getElementById("dataset_filters")].map(el => {
-                while (el.firstChild !== el.lastChild) {
+                while (el.lastChild) {
                     el.removeChild(el.lastChild);
                 }
             });
-            if(this.explorer){
+            [this.shadow.getElementById("dataset_filters")].map(el => {
+                while (el.lastChild && !el.lastChild.sticky) {
+                    el.removeChild(el.lastChild);
+                }
+            });
+            if (this.explorer) {
                 this.explorer.clear();
             }
 
@@ -1402,6 +1527,8 @@
                     }
                 }
                 if (this.explorer) {
+                    let ds = this.explorer.addDataset(o.Info);
+                    ds.tr = tr;
                     let trash = createElement("span", {
                         class: "fa fa-trash"
                     });
@@ -1412,7 +1539,7 @@
                         if (tr.expanded) {
                             table.deleteRow(tr.rowIndex + 1);
                         }
-                        this.explorer.removeDataset(o.Info);
+                        this.explorer.removeDataset(ds);
                         table.deleteRow(tr.rowIndex);
                     })
                     trashtd.appendChild(trash);
@@ -1427,8 +1554,16 @@
             let tbody = this.elements.searchResults;
             let table = tbody.closest("table");
             let onHit = (hit) => {
-                tbody.appendChild(hit2tr(hit));
+                let row = hit2tr(hit);
+                this.search_hits.push({
+                    hit: hit,
+                    row: row
+                })
+                if (this.filters.accepts(hit)) {
+                    tbody.appendChild(row);
+                }
             }
+            this.search_hits = [];
             this._erddapClients.search({
                 query: searchQuery,
                 onResultStatusChanged: onResultsChanged,
@@ -1445,7 +1580,7 @@
                 this.elements.testConnections.style.display = 'none';
                 this.search();
                 //TODO:
-                if(this.explorer){
+                if (this.explorer) {
                     this.explorer.setErddapClients(this._erddapClients);
                 }
             })

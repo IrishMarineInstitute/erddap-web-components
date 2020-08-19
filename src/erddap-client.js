@@ -243,10 +243,10 @@
 		if(!latLngBounds){
 			return [""];
 		}
-		swlat = latLngBounds.getSouthWest().lat;
-		swlon =fixLonRange(latLngBounds.getSouthWest().lon);
-		nelat = latLngBounds.getNorthEast().lat;
-		nelon = fixLonRange(latLngBounds.getNorthEast().lon);
+		let swlat = latLngBounds.getSouthWest().lat;
+		let swlon =fixLonRange(latLngBounds.getSouthWest().lng);
+		let nelat = latLngBounds.getNorthEast().lat;
+		let nelon = fixLonRange(latLngBounds.getNorthEast().lng);
 		if(swlat > nelat || swlat < -90 || nelat > 90){
 			throw(`out of bounds lat range ${swlat}-${nelat}`)
 		}
