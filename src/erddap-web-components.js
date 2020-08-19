@@ -439,7 +439,8 @@
                             circlemarker: false
                         },
                         edit: {
-                            featureGroup: drawnItems
+                            featureGroup: drawnItems,
+                            edit: false
                         }
 
                     });
