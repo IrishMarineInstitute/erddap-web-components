@@ -165,8 +165,8 @@
 						_resolve[url](data);
 					})
 					.catch(e => {
-						console.log(e);
-						if(_reject[url]){
+						//console.log(e);
+						if (_reject[url]) {
 							_reject[url](e);
 						}
 					})
@@ -180,16 +180,20 @@
 			}
 		}
 
-		this.enqueue = (url) => {
+		this.enqueue = (url, priority) => {
 			let promise = _promises[url];
 			if (!promise) {
-				let fn = (resolve,reject)=>{
+				let fn = (resolve, reject) => {
 					_resolve[url] = resolve;
 					_reject[url] = reject;
 				};
 				promise = new Promise(fn);
 				_promises[url] = promise;
-				_queue.push(url);
+				if (priority) {
+					_queue.unshift(url);
+				} else {
+					_queue.push(url);
+				}
 				setTimeout(process, 0)
 			}
 			return promise;
@@ -198,91 +202,160 @@
 
 	let politeFetcher = new PoliteFetcher();
 
-	const DatasetsIndex = function(erddapClient){
+	const DatasetsIndex = function(erddapClient) {
 		this.erddapClient = erddapClient;
+		this.erddapClientMap = {};
 		this.years = [];
+		this.dataset_ids = [];
 		this.indices = [];
 		this.yearmap = [];
+		this.boundsPromises = {};
 	}
 
-	DatasetsIndex.prototype.load = function(){
-		if(!this.erddapClient){
-			throw("Cannot call load on DatasetsIndex not created with an ErddapCliuent")
+	DatasetsIndex.prototype.load = function() {
+		if (!this.erddapClient) {
+			throw ("Cannot call load on DatasetsIndex not created with an ErddapCliuent")
 		}
-		return this.erddapClient.getDataset("datasetsIndex")
-			.fetchData("year&distinct()").then(data=>{
-				this.years = data.map(r=>r.year);
-				return this;
-			})
+		let index = this.erddapClient.getDataset("datasetsIndex");
+		return index.fetchData("year&distinct()").then(data => {
+				this.years = data.map(r => r.year);
+				return this.erddapClient.getDataset("allDatasets").fetchData("metadata").then(data => {
+					this.erddapClientMap = data.reduce((v, o) => {
+						v[o.metadata + ".json"] = this.erddapClient;
+						return v;
+					}, {});
+					return this;
+				})
+			}).then(()=>{
+				return index.fetchData("dataset_id").then(data => {
+					this.dataset_ids = data.map(r => r.year);
+					return this;
+				})
+			});
 
 	}
 
-	DatasetsIndex.prototype.add = function(datasetIndex){
-		if(this.erddapClient){
-			throw("Cannot call add on DatasetsIndex created with an ErddapCliuent")
+	DatasetsIndex.prototype.add = function(datasetIndex) {
+		if (this.erddapClient) {
+			throw ("Cannot call add on DatasetsIndex created with an ErddapClient")
 		}
 		this.indices.push(datasetIndex)
 		let years = this.years.concat(datasetIndex.years);
-		this.years = years.filter((v,i)=>years.indexOf(v) === i);
+		this.years = years.filter((v, i) => years.indexOf(v) === i);
 		this.years.sort();
 		this.yearmap = {};
-		this.years.map(year=>this.yearmap[year] = []);
+		this.years.map(year => this.yearmap[year] = []);
+		this.erddapClientMap = { ...this.erddapClientMap,
+			...datasetIndex.erddapClientMap
+		};
+		this.dataset_ids = this.dataset_ids.concat(datasetIndex.dataset_ids);
 	}
 
-	const fixLonRange = function(lon){
-		while(lon<-180){
+	DatasetsIndex.prototype.fetchBounds = function(dataset_url) {
+		if (!this.boundsPromises[dataset_url]) {
+			let erddapClient = this.erddapClientMap[dataset_url];
+			//TODO: edge case erddap_client undefined.
+			let index = erddapClient.getDataset("datasetsIndex");
+			let dataset_id = dataset_url.replace("/index.json", '').split("/").pop();
+			if(!this.dataset_ids.indexOf(dataset_id)){
+				console.log(`dataset ${dataset_id} not indexed. skipping`);
+				return new Promise((resolve,reject)=>{
+					resolve({});
+				});
+			}
+			let priority = true;
+			let url = index.getDataUrl(".json");
+			let latsurl = `${url}year,latitude&dataset_id="${dataset_id}"&orderByMinMax("year,latitude")`
+			let lonsurl = `${url}year,longitude&dataset_id="${dataset_id}"&orderByMinMax("year,longitude")`
+			this.boundsPromises[dataset_url] = ErddapClient.politeFetchJsonp(latsurl, priority).then(data => {
+				data = e2o(data);
+				let bounds = {};
+				for (let i = 0; i < data.length; i += 2) {
+					bounds[data[i].year] = {
+						lat: {
+							min: data[i].latitude,
+							max: data[i + 1].latitude
+						}
+					};
+				}
+				return ErddapClient.politeFetchJsonp(lonsurl, priority).then(data => {
+					data = e2o(data)
+					for (let i = 0; i < data.length; i += 2) {
+						bounds[data[i].year].lon = {
+							min: data[i].longitude,
+							max: data[i + 1].longitude
+						};
+					}
+					return bounds;
+				})
+
+			}).catch(e=>{
+				//console.log("fetch bounds failed for "+dataset_url);
+				return {}
+			})
+
+		}
+		return this.boundsPromises[dataset_url];
+
+	}
+
+	const fixLonRange = function(lon) {
+		while (lon < -180) {
 			lon += 360;
 		}
-		while(lon>180){
+		while (lon > 180) {
 			lon -= 360;
 		}
 		return lon;
 	}
 
-	const boundsToDap = function(latLngBounds){
-		if(!latLngBounds){
+	const boundsToDap = function(latLngBounds) {
+		if (!latLngBounds) {
 			return [""];
 		}
 		let swlat = latLngBounds.getSouthWest().lat;
-		let swlon =fixLonRange(latLngBounds.getSouthWest().lng);
+		let swlon = fixLonRange(latLngBounds.getSouthWest().lng);
 		let nelat = latLngBounds.getNorthEast().lat;
 		let nelon = fixLonRange(latLngBounds.getNorthEast().lng);
-		if(swlat > nelat || swlat < -90 || nelat > 90){
-			throw(`out of bounds lat range ${swlat}-${nelat}`)
+		if (swlat > nelat || swlat < -90 || nelat > 90) {
+			throw (`out of bounds lat range ${swlat}-${nelat}`)
 		}
-		let latdap = `latitude>=${swlat}&latitude<=${nelat}`; 
-		if(swlon<=nelon){
+		let latdap = `latitude>=${swlat}&latitude<=${nelat}`;
+		if (swlon <= nelon) {
 			return [`&${latdap}&longitude>=${swlon}&longitude<=${nelon}`]
-		}else{
-			return [`&${latdap}&longitude>=${swlon}&longitude<=180`,`&${latdap}&longitude>=-180&longitude<=${nelon}`]
+		} else {
+			return [`&${latdap}&longitude>=${swlon}&longitude<=180`, `&${latdap}&longitude>=-180&longitude<=${nelon}`]
 		}
 
 	}
 
-	DatasetsIndex.prototype.setBounds = function(latLngBounds){
-		if(this.erddapClient){
-			return Promise.all(boundsToDap(latLngBounds).map(dap=>
-				this.erddapClient.getDataset("datasetsIndex")
-				.fetchData(`year,dataset_id${dap}&distinct()`)))
-			.then(datas=>{
+	DatasetsIndex.prototype.setBounds = function(latLngBounds) {
+		if (this.erddapClient) {
+			return Promise.all(boundsToDap(latLngBounds).map(dap =>
+					this.erddapClient.getDataset("datasetsIndex")
+					.fetchData(`year,dataset_id${dap}&distinct()`)))
+				.then(datas => {
 					let results = {};
-					this.years.map(year=>results[year] = []);
-					datas.map(data=>{
-						data.map(row=>{
-							results[row.year].push(this.erddapClient.getDataset(row.dataset_id).datasetUrl()+"/index.json");
+					this.years.map(year => results[year] = []);
+					datas.map(data => {
+						data.map(row => {
+							results[row.year].push(this.erddapClient.getDataset(row.dataset_id).datasetUrl() + "/index.json");
 						})
 					})
 					this.yearmap = results;
 					return results;
+				}).catch(e=>{
+					//console.log("set bounds failed.");
+					return {};
 				})
 
 		}
-		return Promise.all(this.indices.map(x=>x.setBounds(latLngBounds))).then(maps=>{
+		return Promise.all(this.indices.map(x => x.setBounds(latLngBounds))).then(maps => {
 			let results = {};
-			this.years.map(year=>results[year] = []);
-			maps.map(map=>{
-				Object.keys(map).forEach(year=>{
-					map[year].map(dataset_url=>{
+			this.years.map(year => results[year] = []);
+			maps.map(map => {
+				Object.keys(map).forEach(year => {
+					map[year].map(dataset_url => {
 						results[year].push(dataset_url)
 					})
 				})
@@ -310,8 +383,8 @@
 		return datasetCache.getJSONP(url, options);
 	}
 
-	ErddapClient.politeFetchJsonp = function(url) {
-		return politeFetcher.enqueue(url);
+	ErddapClient.politeFetchJsonp = function(url, priority) {
+		return politeFetcher.enqueue(url, priority);
 	}
 
 	ErddapClient.fetchAwesomeErddaps = () => {
@@ -676,31 +749,37 @@
 		}
 		erddaps.forEach(search);
 	}
-	ErddapClient.prototype.loadDatasetsIndex = function(){
-		let datasetsIndex = new DatasetsIndex(this);
-		return datasetsIndex.load().catch(e=>{
-			console.log("datasetsIndex not loaded for "+this.endpoint);
-			return undefined;
-		})
+	ErddapClient.prototype.loadDatasetsIndex = function(reload) {
+		if (reload || this.datasetsIndexPromise === undefined) {
+			let datasetsIndex = new DatasetsIndex(this);
+			this.datasetsIndexPromise = datasetsIndex.load().catch(e => {
+				console.log("datasetsIndex not loaded for " + this.endpoint, e);
+				return undefined;
+			})
+		}
+		return this.datasetsIndexPromise;
 	}
-	ErddapClients.prototype.loadDatasetsIndex = function(){
-		let promises = this.erddaps.map((erddap) =>
-			erddap.loadDatasetsIndex()
-		);
-		return Promise.all(promises).then((indices) => {
-			let datasetsIndex = new DatasetsIndex();
-			for(let i=0;i<indices.length;i++){
-				if(!indices[i]){
-					return null;
+	ErddapClients.prototype.loadDatasetsIndex = function(reload) {
+		if (reload || this.datasetsIndexPromise === undefined) {
+
+			let promises = this.erddaps.map((erddap) =>
+				erddap.loadDatasetsIndex(reload)
+			);
+			this.datasetsIndexPromise = Promise.all(promises).then((indices) => {
+				let datasetsIndex = new DatasetsIndex();
+				for (let i = 0; i < indices.length; i++) {
+					if (!indices[i]) {
+						return null;
+					}
+					datasetsIndex.add(indices[i]);
 				}
-				datasetsIndex.add(indices[i]);
-			}
 
-			return datasetsIndex;
+				return datasetsIndex;
 
-		});
-
-
+			});
+		}
+		return this.datasetsIndexPromise
 	}
+
 	return [ErddapClient, ErddapClients];
 })));

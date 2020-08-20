@@ -373,6 +373,7 @@
         });
         div2.appendChild(searchInfo);
         let categories = false;
+        let mapcomponents = {};
         if (explorer) {
             categories = createElement("div", {
                 class: "row",
@@ -405,6 +406,8 @@
                 L.tileLayer('http://{s}.tile.osm.org/{z}/{x}/{y}.png', {
                     attribution: '&copy; <a href="http://osm.org/copyright">OpenStreetMap</a> contributors'
                 }).addTo(map);
+                let boundsLayer = L.layerGroup().addTo(map);;
+                mapcomponents.boundsLayer = boundsLayer;
                 let loadDrawControlAttempts = 100;
                 let loadDrawControl = () => {
                     if (typeof(L.Control.Draw) === "undefined") {
@@ -468,13 +471,49 @@
 
             }
             setTimeout(loadMap, 200);
+
+            let fgyears = createElement("div", {
+                class: "form-group"
+            });
+            let labelyears = createElement("label", {
+                for: "yearsSlider"
+            }, "Selected years");
+            let yearsSlider = createElement("input", {
+                type: "range",
+                value: 0,
+                max: 1,
+                class: "form-control-range",
+                id: "yearsSlider"
+            });
+            let years = [];
+            explorer.on("datasetsIndexLoaded", (datasetsIndex) => {
+                years = explorer.years.map((year) => year.value);
+                years.push(0);
+                years.unshift(0);
+                yearsSlider.setAttribute("max", years.length - 1);
+                yearsSlider.setAttribute("value", 0);
+                yearsSlider.addEventListener("input", () => {
+                    let year = years[yearsSlider.value];
+                    labelyears.innerText = year ? year : "Selected years"
+                    explorer.setSelectedYear(year || undefined);
+                })
+            });
+            explorer.on("selectedYearChanged", (year) => {
+                if (years[yearsSlider.value] && !year) {
+                    labelyears.innerText = "Selected years";
+                    yearsSlider.value = 0;
+                }
+            })
+            fgyears.appendChild(labelyears)
+            fgyears.appendChild(yearsSlider);
+            div2.appendChild(fgyears);
         }
 
         let searchResultsContainer = createElement("div", {
             class: "row"
         });
-
-        searchResultsContainer.appendChild(createElement("h5", {}, "Datasets"));
+        let searchResultsLabel = createElement("h5", {}, "Datasets");
+        searchResultsContainer.appendChild(searchResultsLabel);
         let table = createElement('table', {
             class: "table table-sm"
         });
@@ -694,7 +733,9 @@
             clearDatasetsButton: clearButton,
             search: search,
             searchResults: searchResults,
-            categories: categories
+            searchResultsLabel: searchResultsLabel,
+            categories: categories,
+            mapcomponents: mapcomponents
         };
     }
     let formcheckCount = 0;
@@ -1282,10 +1323,6 @@
             shadow.appendChild(stylesheet(ss_bootstrap));
             shadow.appendChildScript(js_leaflet);
             this.shadow = shadow;
-            this.search_hits = [];
-            this.filters = {
-                accepts: () => true
-            }
 
             if (typeof(ErddapExplorer) !== 'undefined') {
                 shadow.appendChild(stylesheet(ss_leaflet_draw))
@@ -1325,11 +1362,11 @@
                                 return map;
                             }, {});
                             let variablesDropdown = dropdownSelect(shadow, container, true, false, category.value, variables, (variable) => {
-                                filterDatasetResults(this.explorer);
+                                this.filterDatasetResults();
                             });
                             this.explorer.app_data.dropdowns[category.value] = variablesDropdown;
                             variablesDropdown.style.display = category.state === 1 ? "" : "none";
-                            filterDatasetResults(this.explorer);
+                            this.filterDatasetResults();
 
                         });
                     ioosCategorySelect.sticky = true;
@@ -1342,7 +1379,8 @@
                     let container = shadow.getElementById("dataset_filters");
                     let yearsSelect = dropdownSelect(shadow, container, false, true, "Year", years, () => {
                         this.explorer.yearsMode = yearsSelect.mode;
-                        filterDatasetResults(this.explorer)
+                        this.explorer.setSelectedYear(undefined);
+                        this.filterDatasetResults();
                     })
                     yearsSelect.sticky = true;
                     // let's put it first.
@@ -1352,80 +1390,19 @@
                     }
                 });
                 this.explorer.on("datasetsIndexUpdated", (datasetsIndex) => {
-                    filterDatasetResults(this.explorer);
+                    this.filterDatasetResults();
                 });
+                this.explorer.on("selectedYearChanged", (year) => {
+                    if (year === this.explorer.selectedYear) {
+                        this.filterDatasetResults();
+                    }
+                })
             }
 
             this.elements = createSearchElements(this.explorer);
             this.container = this.elements.container;
             shadow.appendChild(this.container);
-            let filterDatasetResults = (explorer) => {
-                let categories = Object.values(explorer.ioos_categories);
-                let years = explorer.years.filter(year => year.state === 1);
-                let filterByYears = years.length > 0;
-                let rows = this.elements.searchResults.closest("table").rows;
-                for (let row = 1; row < rows.length; row++) {
-                    let dataset_url = rows[row].getAttribute("dataset-url");
-                    let display = "table-row";
-                    for (let i = 0; i < categories.length; i++) {
-                        let category = categories[i];
-                        if (!category.state) continue;
-                        if (category.state < 0) { // exclude only these
-                            if (category.dataset_urls.indexOf(dataset_url) >= 0) {
-                                display = "none";
-                                break;
-                            }
-                        } else { // include only datasets with these
-                            if (category.dataset_urls.indexOf(dataset_url) < 0) {
-                                display = "none";
-                                break;
-                            }
-                            // were any specific variables included/excluded
-                            category.variables.map(variable => {
-                                if (!variable.state) return;
-                                if (variable.state < 0) { // these to be excluded
-                                    if (variable.dataset_urls.indexOf(dataset_url) >= 0) {
-                                        display = "none";
-                                        return;
-                                    }
 
-                                } else { // these must be included
-                                    if (variable.dataset_urls.indexOf(dataset_url) < 0) {
-                                        display = "none";
-                                        return;
-                                    }
-                                }
-                            });
-                        }
-                        if (display === "none") {
-                            break;
-                        }
-
-                    }
-                    if (filterByYears && (display !== "none")) {
-                        display = "none";
-                        for (let i = 0; i < years.length; i++) {
-                            if (explorer.yearsMode === "any" && years[i].dataset_urls.indexOf(dataset_url) >= 0) {
-                                display = "table-row";
-                                break;
-                            }
-                            if (explorer.yearsMode === "all") {
-                                if (years[i].dataset_urls.indexOf(dataset_url) < 0) {
-                                    break;
-                                }
-                                if (i === years.length - 1) {
-                                    display = "table-row";
-                                }
-
-                            }
-
-                        }
-                    }
-                    //TODO: use css class instead
-                    rows[row].style.display = display;
-
-                }
-            }
             this._erddapConfigs = undefined;
             this.elements.searchDatasetsButton.onclick = () => {
                 this.search();
@@ -1440,6 +1417,109 @@
                     this.search();
                 }
             };
+        }
+
+        filterDatasetResults(){
+                if(!this.explorer){
+                    return;
+                }
+                let boundsLayer = this.elements.mapcomponents.boundsLayer;
+                if (boundsLayer) {
+                    boundsLayer.clearLayers();
+                }
+                let rows = this.elements.searchResults.closest("table").rows;
+                let nMatchingDatasets = 0;
+                for (let row = 1; row < rows.length; row++) {
+                    let dataset_url = rows[row].getAttribute("dataset-url");
+                    let includeDataset = this.isDatasetFilteredIn(dataset_url);
+                    rows[row].style.display = includeDataset ? "table-row" : "none";
+                    if (includeDataset) {
+                        nMatchingDatasets ++;
+                        let dataset = this.explorer.getDataset(dataset_url);
+                        if (dataset && boundsLayer) {
+                            //console.log(dataset);
+                            let bounds = this.explorer.selectedYear ? dataset.bounds.year[this.explorer.selectedYear] : dataset.bounds.overall;
+                            bounds = bounds || dataset.bounds.overall;
+                            if (bounds) {
+                                //TODO fix somewhere for bounds that cross the antimeridian.
+                                if (bounds.lat.min !== undefined && bounds.lat.max !== undefined 
+                                    && bounds.lon.min !== undefined && bounds.lon.max !== undefined) {
+                                    let rect = L.rectangle([
+                                        [bounds.lat.min, bounds.lon.min],
+                                        [bounds.lat.max, bounds.lon.max]
+                                    ], {
+                                        fillOpacity: 0
+                                    });
+                                    boundsLayer.addLayer(rect);
+                                }
+                            }
+                        }
+                    }
+                    this.elements.searchResultsLabel.innerText = `${nMatchingDatasets?nMatchingDatasets:"No"} Dataset${nMatchingDatasets==1?"":"s"}`;
+
+
+                }
+            }
+            isDatasetFilteredIn(dataset_url) {
+            if (!this.explorer) {
+                return true;
+            }
+            let explorer = this.explorer;
+            let categories = Object.values(explorer.ioos_categories);
+            for (let i = 0; i < categories.length; i++) {
+                let category = categories[i];
+                if (!category.state) continue;
+                if (category.state < 0) { // exclude only these
+                    if (category.dataset_urls.indexOf(dataset_url) >= 0) {
+                        return false;
+                    }
+                } else { // include only datasets with these
+                    if (category.dataset_urls.indexOf(dataset_url) < 0) {
+                        return false;
+                    }
+                    // were any specific variables included/excluded
+                    let ok = true;
+                    category.variables.map(variable => {
+                        if (!variable.state) return;
+                        if (variable.state < 0) { // these to be excluded
+                            if (variable.dataset_urls.indexOf(dataset_url) >= 0) {
+                                ok = false;;
+                            }
+
+                        } else { // these must be included
+                            if (variable.dataset_urls.indexOf(dataset_url) < 0) {
+                                ok = false;
+                            }
+                        }
+                    });
+                    if (!ok) {
+                        return false;
+                    }
+                }
+            }
+
+            let years = explorer.years.filter(year => year.state === 1);
+            let yearsMode = explorer.yearsMode;
+            if (explorer.selectedYear) {
+                years = explorer.years.filter(year => year.value === explorer.selectedYear);
+                yearsMode = "any";
+            }
+            let filterByYears = years.length > 0;
+            if (filterByYears) {
+                for (let i = 0; i < years.length; i++) {
+                    if (yearsMode === "any" && years[i].dataset_urls.indexOf(dataset_url) >= 0) {
+                        return true;
+                    }
+                    if (yearsMode === "all" && years[i].dataset_urls.indexOf(dataset_url) < 0) {
+                        return false;
+                    }
+
+                }
+                return yearsMode === "any" ? false : true;
+            }
+
+            return true;
+
         }
 
         search() {
@@ -1550,21 +1630,14 @@
 
             }
             let onResultsChanged = (x) => {
-                //console.log('changed', x)
             };
             let tbody = this.elements.searchResults;
             let table = tbody.closest("table");
             let onHit = (hit) => {
                 let row = hit2tr(hit);
-                this.search_hits.push({
-                    hit: hit,
-                    row: row
-                })
-                if (this.filters.accepts(hit)) {
-                    tbody.appendChild(row);
-                }
+                tbody.appendChild(row);
+                this.filterDatasetResults();
             }
-            this.search_hits = [];
             this._erddapClients.search({
                 query: searchQuery,
                 onResultStatusChanged: onResultsChanged,
