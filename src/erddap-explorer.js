@@ -121,14 +121,13 @@
             categoriesChanged: [],
             datasetsIndexLoaded: [],
             datasetsIndexUpdated: [],
-            selectedYearChanged: []
+            selectedYearsChanged: []
         };
         this.timeouts = {};
         this.app_data = {};
         this.erddapClients = undefined;
         this.datasetsIndex = undefined;
         this.years = [];
-        this.yearsMode = "any";
         this.bounds = undefined;
         this.selectedYear = undefined;
     }
@@ -166,12 +165,6 @@
         }
     }
 
-    ErddapExplorer.prototype.setSelectedYear = function(year) {
-        if (year !== this.selectedYear) {
-            this.selectedYear = year;
-            this._trigger("selectedYearChanged", year);
-        }
-    }
 
     ErddapExplorer.prototype._trigger = function(type, e) {
         clearTimeout(this.timeouts[type]);

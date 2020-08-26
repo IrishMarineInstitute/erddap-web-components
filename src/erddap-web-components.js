@@ -306,26 +306,37 @@
 
 
     function createSearchElements(explorer) {
-        let div1 = document.createElement("div");
-        div1.setAttribute("class", "container");
-        let searchArea = document.createElement("div");
-        searchArea.setAttribute("class", "row");
-        searchArea.setAttribute("id", "searchArea");
-        let div2 = document.createElement("div");
-        div2.setAttribute("class", "col-md-12 well");
-        let datasets = document.createElement("legend");
-        datasets.setAttribute("id", "datasets");
-        let a = document.createElement("a");
-        a.setAttribute("target", "_blank");
-        a.setAttribute("href", "https://coastwatch.pfeg.noaa.gov/erddap/information.html");
-        a.setAttribute("title", "find out more...");
-        a.appendChild(document.createTextNode("ERDDAP"));
+        let div1 = createElement("div", {
+            class: "container-fluid"
+        });
+        let searchArea = createElement("div", {
+            class: "row",
+            id: "searchArea"
+        });
+        let categories = createElement("div", {
+            class: "col-2",
+            id: "dataset_filters"
+        });
+        searchArea.appendChild(categories);
+
+        let div2 = createElement("div", {
+            class: "col-8 well"
+        });
+        let datasets = createElement("legend", {
+            id: "datasets"
+        });
+        let a = createElement("a", {
+            target: "_blank",
+            href: "https://coastwatch.pfeg.noaa.gov/erddap/information.html",
+            title: "find out more..."
+        }, "ERDDAP");
         datasets.appendChild(a)
         datasets.appendChild(document.createTextNode(` Dataset ${explorer?"Explorer":"Discovery"} `));
-        let showSettingsLink = document.createElement("a");
-        showSettingsLink.setAttribute("href", "#settings");
-        showSettingsLink.setAttribute("title", "Click to configure settings");
-        showSettingsLink.setAttribute("class", "float-right");
+        let showSettingsLink = createElement("a", {
+            href: "#settings",
+            title: "Click to configure settings",
+            class: "float-right"
+        });
         let i = document.createElement("i");
         i.setAttribute("class", "fa fa-cog");
         showSettingsLink.appendChild(i)
@@ -335,36 +346,28 @@
         testConnections.setAttribute("id", "testConnections");
         testConnections.setAttribute("style", "display: block");
         div2.appendChild(testConnections)
-        let searchForm = document.createElement("div");
-        searchForm.setAttribute("id", "searchForm");
-        searchForm.setAttribute("class", "form-group");
-        searchForm.setAttribute("style", "display: block");
-        let label = document.createElement("label");
-        label.setAttribute("for", "search");
-        label.appendChild(document.createTextNode("Search Datasets"));
-        searchForm.appendChild(label)
-        let search = document.createElement("input");
-        search.setAttribute("type", "text");
-        search.setAttribute("class", "form-control");
-        search.setAttribute("id", "search");
-        search.setAttribute("aria-describedby", "searchHelp");
-        search.setAttribute("placeholder", "Enter some text...");
+        let searchForm = createElement("div", {
+            id: "searchForm",
+            class: explorer ? "form-inline" : "form-group",
+            style: "display: block"
+        });
+        let search = createElement("input", {
+            type: "text",
+            class: "form-control",
+            id: "search",
+            "aria-describedby": "searchHelp",
+            placeholder: "Full text search..."
+        });
         searchForm.appendChild(search)
-        let searchHelp = document.createElement("small");
-        searchHelp.setAttribute("id", "searchHelp");
-        searchHelp.setAttribute("class", "form-text text-muted");
-        searchHelp.appendChild(document.createTextNode("Type some words about the dataset you seek, then press the green button"));
-        searchForm.appendChild(searchHelp)
-        let searchDatasetsButton = document.createElement("button");
-        searchDatasetsButton.setAttribute("id", "searchDatasetsButton");
-        searchDatasetsButton.setAttribute("class", "btn btn-success");
-        searchDatasetsButton.appendChild(document.createTextNode("Search"));
+        let searchDatasetsButton = createElement("button", {
+            id: "searchDatasetsButton",
+            class: "btn btn-success"
+        }, "Search");
         searchForm.appendChild(searchDatasetsButton)
         let clearButton = createElement("button", {
             id: "clearButton",
             class: "btn btn-info"
-        });
-        clearButton.appendChild(document.createTextNode("Clear"));
+        }, "Clear");
         searchForm.appendChild(clearButton)
         div2.appendChild(searchForm)
         let searchInfo = createElement("div", {
@@ -372,14 +375,8 @@
             id: "searchInfo"
         });
         div2.appendChild(searchInfo);
-        let categories = false;
         let mapcomponents = {};
         if (explorer) {
-            categories = createElement("div", {
-                class: "row",
-                id: "dataset_filters"
-            });
-            div2.appendChild(categories);
 
 
             let mapDiv = createElement('div', {
@@ -420,7 +417,6 @@
                     }
                     var drawnItems = new L.FeatureGroup();
                     map.addLayer(drawnItems);
-                    console.log(L.drawLocal)
                     L.drawLocal.draw.toolbar.buttons.rectangle = "Mark area of interest";
                     L.drawLocal.edit.toolbar.buttons.edit = "Edit area of interest";
                     L.drawLocal.edit.toolbar.buttons.editDisabled = "No area of interest to edit";
@@ -472,41 +468,66 @@
             }
             setTimeout(loadMap, 200);
 
-            let fgyears = createElement("div", {
-                class: "form-group"
-            });
-            let labelyears = createElement("label", {
-                for: "yearsSlider"
-            }, "Selected years");
-            let yearsSlider = createElement("input", {
-                type: "range",
-                value: 0,
-                max: 1,
-                class: "form-control-range",
-                id: "yearsSlider"
-            });
+            {
+                let yearsControl = createElement("div",{class: "row"});
+                let yearLabel1 = createElement("div",{class: "h5 col-md-1"})
+                let yearLabel2 = createElement("div",{class: "h5 col-md-1"})
+                let sectionHolder = createElement("div",{class: "col-md-10"})
+                let section = createElement("section", {
+                    class: "range-slider"
+                });
+                let yearsSlider1 = createElement("input", {
+                    type: "range",
+                    value: 0,
+                    max: 100,
+                    class: "form-control-rangex",
+                    id: "yearsSlider1"
+                });
+                let yearsSlider2 = createElement("input", {
+                    type: "range",
+                    value: 100,
+                    max: 100,
+                    class: "form-control-rangex",
+                    id: "yearsSlider2"
+                });
+                section.appendChild(yearsSlider1);
+                section.appendChild(yearsSlider2);
+                sectionHolder.appendChild(section);
+                yearsControl.appendChild(yearLabel1);
+                yearsControl.appendChild(sectionHolder);
+                yearsControl.appendChild(yearLabel2);
+                div2.appendChild(yearsControl);
+
+
             let years = [];
             explorer.on("datasetsIndexLoaded", (datasetsIndex) => {
-                years = explorer.years.map((year) => year.value);
-                years.push(0);
-                years.unshift(0);
-                yearsSlider.setAttribute("max", years.length - 1);
-                yearsSlider.setAttribute("value", 0);
-                yearsSlider.addEventListener("input", () => {
-                    let year = years[yearsSlider.value];
-                    labelyears.innerText = year ? year : "Selected years"
-                    explorer.setSelectedYear(year || undefined);
-                })
-            });
-            explorer.on("selectedYearChanged", (year) => {
-                if (years[yearsSlider.value] && !year) {
-                    labelyears.innerText = "Selected years";
-                    yearsSlider.value = 0;
+                years = explorer.years.map((year) => {
+                    year.state = 1;
+                    return year.value;
+                });
+                yearsSlider1.setAttribute("max", years.length - 1);
+                yearsSlider2.setAttribute("max", years.length - 1);
+                yearsSlider1.setAttribute("value", 0);
+                yearLabel1.innerText = years[0];
+                yearsSlider2.setAttribute("value", years.length-1);
+                yearLabel2.innerText = years[years.length-1];
+                let listener = () => {
+                    let yrs = [years[yearsSlider1.value],years[yearsSlider2.value]];
+                    yrs.sort();
+                    yearLabel1.innerText = yrs[0];
+                    yearLabel2.innerText = yrs[1];
+                    explorer.years.map((year)=>{
+                        year.state = (year.value >= yrs[0] && year.value <= yrs[1])?1:0;
+                    });
+
+                    explorer._trigger("selectedYearsChanged");
                 }
-            })
-            fgyears.appendChild(labelyears)
-            fgyears.appendChild(yearsSlider);
-            div2.appendChild(fgyears);
+                yearsSlider1.addEventListener("input", listener);
+                yearsSlider2.addEventListener("input", listener);
+            });
+
+            }
+
         }
 
         let searchResultsContainer = createElement("div", {
@@ -751,28 +772,47 @@
             }
         } else {
             div = createElement("div", {
-                class: "btn-group",
+                class: "card text-white bg-info mt-1",
                 id: div_id
             });
-            let divlabel = createElement("button", {
-                class: "btn btn-secondary dropdown-toggle"
+            let divlabel = createElement("h6", {
+                class: "card-title dropdown-toggle"
             }, name);
             checkboxes = createElement("div", {
                 tabindex: 100 + formcheckCount,
-                id: checkboxes_id,
-                class: "dropdown-menu",
-                style: "position: absolute; transform: translate3d(0px, 38px, 0px); top: 0px; left: 0px; will-change: transform; z-index: 1100"
+                id: checkboxes_id
+
             });
             div.appendChild(divlabel);
             div.appendChild(checkboxes);
-            divlabel.addEventListener("click", e => {
+            let showElements = () => {
+                let inputs = checkboxes.getElementsByTagName("input");
+                for (let input of inputs) {
+                    input.closest("div.form-check").style.display = "block";
+                }
+            }
+            let hideElements = () => {
+                let inputs = checkboxes.getElementsByTagName("input");
+                for (let input of inputs) {
+                    if (!input.checked) {
+                        input.closest("div.form-check").style.display = "none";
+                    }
+                }
+            }
+            checkboxes.hideElements = hideElements;
+            divlabel.addEventListener("mousedown", e => {
                 if (checkboxes.classList.contains("show")) {
                     checkboxes.classList.remove("show");
+                    hideElements();
                 } else {
                     checkboxes.classList.add("show");
+                    showElements();
                 }
             });
-            checkboxes.addEventListener("blur", e => checkboxes.classList.remove("show"));
+            checkboxes.addEventListener("blur", e => {
+                checkboxes.classList.remove("show");
+                hideElements();
+            });
             container.appendChild(div);
         }
         if (allSelector) {
@@ -788,6 +828,7 @@
                 let formcheck = createElement("div", {
                     class: "form-check"
                 })
+                formcheck.style["padding-left"] = ".1rem"
                 let label = createElement("label", {
                     class: "form-check-label",
                     for: `mode{$name}${el.mode}`
@@ -823,6 +864,7 @@
                 let formcheck = createElement("div", {
                     class: "form-check"
                 })
+                formcheck.style["padding-left"] = ".1rem"
                 let settings = {
                     type: "checkbox",
                     value: option.value,
@@ -896,6 +938,7 @@
             let formcheck = createElement("div", {
                 class: "form-check"
             })
+            formcheck.style["padding-left"] = ".1rem"
             let settings = {
                 type: "checkbox",
                 value: option.value,
@@ -943,6 +986,7 @@
             formcheck.appendChild(label);
             checkboxes.appendChild(formcheck);
         });
+        checkboxes.hideElements();
 
         return div;
 
@@ -1341,6 +1385,68 @@
                     input[type=checkbox] + label:before { content: "\\f111"; } /* unchecked icon */
                     input[type=checkbox]:checked + label:before { content: "\\f058"; } /* checked icon */
                     input[type=checkbox].exclude:checked + label:before { content: "\\f057"; } /* checked icon */
+
+
+
+                    section.range-slider {
+                      width: 100%;
+                      margin: auto;
+                      text-align: center;
+                      position: relative;
+                      height: 1em;
+                    }
+
+                    section.range-slider input[type=range] {
+                      position: absolute;
+                      left: 0;
+                      bottom: 0;
+                    }
+
+                    section input[type=range] {
+                      -webkit-appearance: none;
+                      width: 100%;
+                    }
+
+                    section input[type=range]:focus {
+                      outline: none;
+                    }
+
+                    section input[type=range]:focus::-webkit-slider-runnable-track {
+                      background: #2497e3;
+                    }
+
+                    section input[type=range]:focus::-ms-fill-lower {
+                      background: #2497e3;
+                    }
+
+                    section input[type=range]:focus::-ms-fill-upper {
+                      background: #2497e3;
+                    }
+
+                    section input[type=range]::-webkit-slider-runnable-track {
+                      width: 100%;
+                      height: 5px;
+                      cursor: pointer;
+                      animate: 0.2s;
+                      background: #2497e3;
+                      border-radius: 1px;
+                      box-shadow: none;
+                      border: 0;
+                    }
+
+                    section input[type=range]::-webkit-slider-thumb {
+                      z-index: 2;
+                      position: relative;
+                      box-shadow: 0px 0px 0px #000;
+                      border: 1px solid #2497e3;
+                      height: 18px;
+                      width: 18px;
+                      border-radius: 25px;
+                      background: #a1d0ff;
+                      cursor: pointer;
+                      -webkit-appearance: none;
+                      margin-top: -7px;
+                    }
             `;
                 shadow.appendChild(style);
 
@@ -1370,32 +1476,13 @@
 
                         });
                     ioosCategorySelect.sticky = true;
-                });
-                this.explorer.on("datasetsIndexLoaded", (datasetsIndex) => {
-                    let years = this.explorer.years.reduce(function(map, year) {
-                        map[year.value] = year;
-                        return map;
-                    }, {});
-                    let container = shadow.getElementById("dataset_filters");
-                    let yearsSelect = dropdownSelect(shadow, container, false, true, "Year", years, () => {
-                        this.explorer.yearsMode = yearsSelect.mode;
-                        this.explorer.setSelectedYear(undefined);
-                        this.filterDatasetResults();
-                    })
-                    yearsSelect.sticky = true;
-                    // let's put it first.
-                    if (container.firstChild !== yearsSelect) {
-                        container.removeChild(yearsSelect);
-                        container.insertBefore(yearsSelect, container.firstChild);
-                    }
+                    ioosCategorySelect.style.display = Object.keys(categories).length ? "block" : "none";
                 });
                 this.explorer.on("datasetsIndexUpdated", (datasetsIndex) => {
                     this.filterDatasetResults();
                 });
-                this.explorer.on("selectedYearChanged", (year) => {
-                    if (year === this.explorer.selectedYear) {
+                this.explorer.on("selectedYearsChanged", (year) => {
                         this.filterDatasetResults();
-                    }
                 })
             }
 
@@ -1419,48 +1506,48 @@
             };
         }
 
-        filterDatasetResults(){
-                if(!this.explorer){
-                    return;
-                }
-                let boundsLayer = this.elements.mapcomponents.boundsLayer;
-                if (boundsLayer) {
-                    boundsLayer.clearLayers();
-                }
-                let rows = this.elements.searchResults.closest("table").rows;
-                let nMatchingDatasets = 0;
-                for (let row = 1; row < rows.length; row++) {
-                    let dataset_url = rows[row].getAttribute("dataset-url");
-                    let includeDataset = this.isDatasetFilteredIn(dataset_url);
-                    rows[row].style.display = includeDataset ? "table-row" : "none";
-                    if (includeDataset) {
-                        nMatchingDatasets ++;
-                        let dataset = this.explorer.getDataset(dataset_url);
-                        if (dataset && boundsLayer) {
-                            //console.log(dataset);
-                            let bounds = this.explorer.selectedYear ? dataset.bounds.year[this.explorer.selectedYear] : dataset.bounds.overall;
-                            bounds = bounds || dataset.bounds.overall;
-                            if (bounds) {
-                                //TODO fix somewhere for bounds that cross the antimeridian.
-                                if (bounds.lat.min !== undefined && bounds.lat.max !== undefined 
-                                    && bounds.lon.min !== undefined && bounds.lon.max !== undefined) {
-                                    let rect = L.rectangle([
-                                        [bounds.lat.min, bounds.lon.min],
-                                        [bounds.lat.max, bounds.lon.max]
-                                    ], {
-                                        fillOpacity: 0
-                                    });
-                                    boundsLayer.addLayer(rect);
-                                }
+        filterDatasetResults() {
+            if (!this.explorer) {
+                return;
+            }
+            let boundsLayer = this.elements.mapcomponents.boundsLayer;
+            if (boundsLayer) {
+                boundsLayer.clearLayers();
+            }
+            let rows = this.elements.searchResults.closest("table").rows;
+            let nMatchingDatasets = 0;
+            for (let row = 1; row < rows.length; row++) {
+                let dataset_url = rows[row].getAttribute("dataset-url");
+                let includeDataset = this.isDatasetFilteredIn(dataset_url);
+                rows[row].style.display = includeDataset ? "table-row" : "none";
+                if (includeDataset) {
+                    nMatchingDatasets++;
+                    let dataset = this.explorer.getDataset(dataset_url);
+                    if (dataset && boundsLayer) {
+                        //console.log(dataset);
+                        let bounds = this.explorer.selectedYear ? dataset.bounds.year[this.explorer.selectedYear] : dataset.bounds.overall;
+                        bounds = bounds || dataset.bounds.overall;
+                        if (bounds) {
+                            //TODO fix somewhere for bounds that cross the antimeridian.
+                            if (bounds.lat.min !== undefined && bounds.lat.max !== undefined &&
+                                bounds.lon.min !== undefined && bounds.lon.max !== undefined) {
+                                let rect = L.rectangle([
+                                    [bounds.lat.min, bounds.lon.min],
+                                    [bounds.lat.max, bounds.lon.max]
+                                ], {
+                                    fillOpacity: 0
+                                });
+                                boundsLayer.addLayer(rect);
                             }
                         }
                     }
-                    this.elements.searchResultsLabel.innerText = `${nMatchingDatasets?nMatchingDatasets:"No"} Dataset${nMatchingDatasets==1?"":"s"}`;
-
-
                 }
+                this.elements.searchResultsLabel.innerText = `${nMatchingDatasets?nMatchingDatasets:"No"} Dataset${nMatchingDatasets==1?"":"s"}`;
+
+
             }
-            isDatasetFilteredIn(dataset_url) {
+        }
+        isDatasetFilteredIn(dataset_url) {
             if (!this.explorer) {
                 return true;
             }
@@ -1499,27 +1586,12 @@
             }
 
             let years = explorer.years.filter(year => year.state === 1);
-            let yearsMode = explorer.yearsMode;
-            if (explorer.selectedYear) {
-                years = explorer.years.filter(year => year.value === explorer.selectedYear);
-                yearsMode = "any";
-            }
-            let filterByYears = years.length > 0;
-            if (filterByYears) {
-                for (let i = 0; i < years.length; i++) {
-                    if (yearsMode === "any" && years[i].dataset_urls.indexOf(dataset_url) >= 0) {
-                        return true;
-                    }
-                    if (yearsMode === "all" && years[i].dataset_urls.indexOf(dataset_url) < 0) {
-                        return false;
-                    }
-
+            for (let i = 0; i < years.length; i++) {
+                if (years[i].dataset_urls.indexOf(dataset_url) >= 0) {
+                    return true;
                 }
-                return yearsMode === "any" ? false : true;
             }
-
-            return true;
-
+            return false;
         }
 
         search() {
@@ -1629,8 +1701,7 @@
                 return tr;
 
             }
-            let onResultsChanged = (x) => {
-            };
+            let onResultsChanged = (x) => {};
             let tbody = this.elements.searchResults;
             let table = tbody.closest("table");
             let onHit = (hit) => {
