@@ -241,6 +241,7 @@
     ErddapExplorer.prototype.removeDataset = function(ds) {
         let dataset_url = ds.dataset_url || ds;
         delete this.datasets[dataset_url]
+        this._trigger("datasetsIndexUpdated", this.datasetsIndex);
         this.updateIOOSCategories();
     }
 
