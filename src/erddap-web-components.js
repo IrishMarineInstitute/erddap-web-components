@@ -469,10 +469,18 @@
             setTimeout(loadMap, 200);
 
             {
-                let yearsControl = createElement("div",{class: "row"});
-                let yearLabel1 = createElement("div",{class: "h5 col-md-1"})
-                let yearLabel2 = createElement("div",{class: "h5 col-md-1"})
-                let sectionHolder = createElement("div",{class: "col-md-10"})
+                let yearsControl = createElement("div", {
+                    class: "row"
+                });
+                let yearLabel1 = createElement("div", {
+                    class: "h5 col-md-1"
+                })
+                let yearLabel2 = createElement("div", {
+                    class: "h5 col-md-1"
+                })
+                let sectionHolder = createElement("div", {
+                    class: "col-md-10"
+                })
                 let section = createElement("section", {
                     class: "range-slider"
                 });
@@ -499,32 +507,32 @@
                 div2.appendChild(yearsControl);
 
 
-            let years = [];
-            explorer.on("datasetsIndexLoaded", (datasetsIndex) => {
-                years = explorer.years.map((year) => {
-                    year.state = 1;
-                    return year.value;
-                });
-                yearsSlider1.setAttribute("max", years.length - 1);
-                yearsSlider2.setAttribute("max", years.length - 1);
-                yearsSlider1.setAttribute("value", 0);
-                yearLabel1.innerText = years[0];
-                yearsSlider2.setAttribute("value", years.length-1);
-                yearLabel2.innerText = years[years.length-1];
-                let listener = () => {
-                    let yrs = [years[yearsSlider1.value],years[yearsSlider2.value]];
-                    yrs.sort();
-                    yearLabel1.innerText = yrs[0];
-                    yearLabel2.innerText = yrs[1];
-                    explorer.years.map((year)=>{
-                        year.state = (year.value >= yrs[0] && year.value <= yrs[1])?1:0;
+                let years = [];
+                explorer.on("datasetsIndexLoaded", (datasetsIndex) => {
+                    years = explorer.years.map((year) => {
+                        year.state = 1;
+                        return year.value;
                     });
+                    yearsSlider1.setAttribute("max", years.length - 1);
+                    yearsSlider2.setAttribute("max", years.length - 1);
+                    yearsSlider1.setAttribute("value", 0);
+                    yearLabel1.innerText = years[0];
+                    yearsSlider2.setAttribute("value", years.length - 1);
+                    yearLabel2.innerText = years[years.length - 1];
+                    let listener = () => {
+                        let yrs = [years[yearsSlider1.value], years[yearsSlider2.value]];
+                        yrs.sort();
+                        yearLabel1.innerText = yrs[0];
+                        yearLabel2.innerText = yrs[1];
+                        explorer.years.map((year) => {
+                            year.state = (year.value >= yrs[0] && year.value <= yrs[1]) ? 1 : 0;
+                        });
 
-                    explorer._trigger("selectedYearsChanged");
-                }
-                yearsSlider1.addEventListener("input", listener);
-                yearsSlider2.addEventListener("input", listener);
-            });
+                        explorer._trigger("selectedYearsChanged");
+                    }
+                    yearsSlider1.addEventListener("input", listener);
+                    yearsSlider2.addEventListener("input", listener);
+                });
 
             }
 
@@ -551,6 +559,7 @@
         }
         tr.appendChild(th(""));
         tr.appendChild(th("Title"));
+        tr.appendChild(th(explorer?"Years":""));
         tr.appendChild(th("Institution"));
         tr.appendChild(th("Dataset"));
         tr.appendChild(th(""));
@@ -1482,7 +1491,7 @@
                     this.filterDatasetResults();
                 });
                 this.explorer.on("selectedYearsChanged", (year) => {
-                        this.filterDatasetResults();
+                    this.filterDatasetResults();
                 })
             }
 
@@ -1523,6 +1532,12 @@
                 if (includeDataset) {
                     nMatchingDatasets++;
                     let dataset = this.explorer.getDataset(dataset_url);
+                    if (dataset) {
+                        let tdyears = rows[row].querySelector("td.years");
+                        if (tdyears) {
+                            tdyears.innerText = dataset.display_years.join(", ");
+                        }
+                    }
                     if (dataset && boundsLayer) {
                         //console.log(dataset);
                         let bounds = this.explorer.selectedYear ? dataset.bounds.year[this.explorer.selectedYear] : dataset.bounds.overall;
@@ -1628,6 +1643,9 @@
                 let expand = td("");
                 tr.appendChild(expand);
                 tr.appendChild(td(o.Title));
+                tr.appendChild(createElement("td", {
+                    class: "years"
+                }, ""))
                 tr.appendChild(td(o.Institution || ""));
                 if (o.Info) {
                     let e = document.createElement("td");
@@ -1660,7 +1678,7 @@
                         tr.expanded = true;
                         expandText.innerText = "-";
                         let contents = td(""); //"...");
-                        contents.setAttribute("colspan", 4);
+                        contents.setAttribute("colspan", 5);
                         row.appendChild(contents);
                         //let infotable = document.createElement('erddap-dataset-info-table');
                         //infotable.setAttribute("dataset-url", o.url);

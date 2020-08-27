@@ -52,6 +52,7 @@
             overall: undefined,
             year: {}
         }
+        this.display_years = [];
         this.fetchMetadataPromise = ErddapClient.politeFetchJsonp(dataset_url).then(data => {
             this.metadata = data.table.rows;
             let bounds = {
@@ -203,6 +204,29 @@
                         })
                         dataset.bounds.overall = overall;
                     }
+                    let dsyears = Object.keys(bounds).map(year=>parseInt(year));
+                    dsyears.sort();
+                    let prev = dsyears[0], start = dsyears[0];
+                    let yrsout = [];
+                    let push = (s,p)=>{
+                        if(s === p){
+                            yrsout.push(""+s);
+                        }else{
+                            yrsout.push(`${s}-${p}`)
+                        }
+                    }
+                    for(let i=1;i<dsyears.length;i++){
+                        let year = dsyears[i];
+                        if(year === prev+1){
+                            prev = year;
+                            continue;
+                        }
+                        push(start,prev);
+                        start = year;
+                        prev - year;
+                    }
+                    push(start,prev);
+                    dataset.display_years = yrsout;
                     this._trigger("datasetsIndexUpdated", this.datasetsIndex);
                 })
             }
@@ -216,7 +240,7 @@
     }
     ErddapExplorer.prototype.removeDataset = function(ds) {
         let dataset_url = ds.dataset_url || ds;
-        this.datasets.delete(dataset_url)
+        delete this.datasets[dataset_url]
         this.updateIOOSCategories();
     }
 
