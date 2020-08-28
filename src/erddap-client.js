@@ -209,7 +209,9 @@
 		this.dataset_ids = [];
 		this.indices = [];
 		this.yearmap = [];
-		this.boundsPromises = {};
+		this.bounds = {};
+		this.boundsPromise = undefined;
+		this.latLngBounds = false;
 	}
 
 	DatasetsIndex.prototype.load = function() {
@@ -218,20 +220,20 @@
 		}
 		let index = this.erddapClient.getDataset("datasetsIndex");
 		return index.fetchData("year&distinct()").then(data => {
-				this.years = data.map(r => r.year);
-				return this.erddapClient.getDataset("allDatasets").fetchData("metadata").then(data => {
-					this.erddapClientMap = data.reduce((v, o) => {
-						v[o.metadata + ".json"] = this.erddapClient;
-						return v;
-					}, {});
-					return this;
-				})
-			}).then(()=>{
-				return index.fetchData("dataset_id").then(data => {
-					this.dataset_ids = data.map(r => r.year);
-					return this;
-				})
-			});
+			this.years = data.map(r => r.year);
+			return this.erddapClient.getDataset("allDatasets").fetchData("metadata").then(data => {
+				this.erddapClientMap = data.reduce((v, o) => {
+					v[o.metadata + ".json"] = this.erddapClient;
+					return v;
+				}, {});
+				return this;
+			})
+		}).then(() => index.fetchData("dataset_id").then(data => {
+			this.dataset_ids = data.map(r => r.year);
+			return this;
+		}).then(() =>
+			this.setBounds().then(() => this)
+		));
 
 	}
 
@@ -251,53 +253,6 @@
 		this.dataset_ids = this.dataset_ids.concat(datasetIndex.dataset_ids);
 	}
 
-	DatasetsIndex.prototype.fetchBounds = function(dataset_url) {
-		if (!this.boundsPromises[dataset_url]) {
-			let erddapClient = this.erddapClientMap[dataset_url];
-			//TODO: edge case erddap_client undefined.
-			let index = erddapClient.getDataset("datasetsIndex");
-			let dataset_id = dataset_url.replace("/index.json", '').split("/").pop();
-			if(!this.dataset_ids.indexOf(dataset_id)){
-				console.log(`dataset ${dataset_id} not indexed. skipping`);
-				return new Promise((resolve,reject)=>{
-					resolve({});
-				});
-			}
-			let priority = true;
-			let url = index.getDataUrl(".json");
-			let latsurl = `${url}year,latitude&dataset_id="${dataset_id}"&orderByMinMax("year,latitude")`
-			let lonsurl = `${url}year,longitude&dataset_id="${dataset_id}"&orderByMinMax("year,longitude")`
-			this.boundsPromises[dataset_url] = ErddapClient.politeFetchJsonp(latsurl, priority).then(data => {
-				data = e2o(data);
-				let bounds = {};
-				for (let i = 0; i < data.length; i += 2) {
-					bounds[data[i].year] = {
-						lat: {
-							min: data[i].latitude,
-							max: data[i + 1].latitude
-						}
-					};
-				}
-				return ErddapClient.politeFetchJsonp(lonsurl, priority).then(data => {
-					data = e2o(data)
-					for (let i = 0; i < data.length; i += 2) {
-						bounds[data[i].year].lon = {
-							min: data[i].longitude,
-							max: data[i + 1].longitude
-						};
-					}
-					return bounds;
-				})
-
-			}).catch(e=>{
-				//console.log("fetch bounds failed for "+dataset_url);
-				return {}
-			})
-
-		}
-		return this.boundsPromises[dataset_url];
-
-	}
 
 	const fixLonRange = function(lon) {
 		while (lon < -180) {
@@ -328,41 +283,80 @@
 		}
 
 	}
+	DatasetsIndex.prototype.getBounds = function(dataset_url) {
+		return this.setBounds(this.latLngBounds).then(x=>this.bounds[dataset_url] || {});
+	}
 
 	DatasetsIndex.prototype.setBounds = function(latLngBounds) {
-		if (this.erddapClient) {
-			return Promise.all(boundsToDap(latLngBounds).map(dap =>
-					this.erddapClient.getDataset("datasetsIndex")
-					.fetchData(`year,dataset_id${dap}&distinct()`)))
-				.then(datas => {
-					let results = {};
-					this.years.map(year => results[year] = []);
-					datas.map(data => {
-						data.map(row => {
-							results[row.year].push(this.erddapClient.getDataset(row.dataset_id).datasetUrl() + "/index.json");
-						})
-					})
-					this.yearmap = results;
-					return results;
-				}).catch(e=>{
-					//console.log("set bounds failed.");
-					return {};
-				})
-
+		if (this.boundsPromise && (latLngBounds === this.latLngBounds) ||
+			(latLngBounds && latLngBounds.equals &&
+				this.latLngBounds && this.latLngBounds.equals &&
+				latLngBounds.equals(this.latLngBounds))) {
+			return this.boundsPromise;
 		}
-		return Promise.all(this.indices.map(x => x.setBounds(latLngBounds))).then(maps => {
-			let results = {};
-			this.years.map(year => results[year] = []);
-			maps.map(map => {
-				Object.keys(map).forEach(year => {
-					map[year].map(dataset_url => {
-						results[year].push(dataset_url)
-					})
+		if (this.erddapClient) {
+			this.boundsPromise = Promise.all(boundsToDap(latLngBounds).map(dap =>
+				this.erddapClient.getDataset("datasetsIndex")
+				.fetchData(`dataset_id,year,latitude${dap}&orderByMinMax("dataset_id,year,latitude")`)
+				.then(data => {
+					let yearmap = {};
+					let bounds = {};
+					for (let i = 0; i < data.length; i += 2) {
+						let dataset_url = this.erddapClient.getDataset(data[i].dataset_id).datasetUrl() + "/index.json";
+						yearmap[data[i].year] = yearmap[data[i].year] || [];
+						yearmap[data[i].year].push(dataset_url);
+						bounds[dataset_url] = bounds[dataset_url] || {};
+						bounds[dataset_url][data[i].year] = {
+							lat: {
+								min: data[i].latitude,
+								max: data[i + 1].latitude
+							}
+						};
+					}
+					return this.erddapClient.getDataset("datasetsIndex")
+						.fetchData(`dataset_id,year,longitude${dap}&orderByMinMax("dataset_id,year,longitude")`)
+						.then(data => {
+							for (let i = 0; i < data.length; i += 2) {
+								let dataset_url = this.erddapClient.getDataset(data[i].dataset_id).datasetUrl() + "/index.json";
+								bounds[dataset_url][data[i].year].lon = {
+									min: data[i].longitude,
+									max: data[i + 1].longitude
+								};
+							}
+							this.bounds = bounds;
+							this.yearmap = yearmap;
+							return {yearmap: yearmap,bounds: bounds};
+						}).catch(e => {
+							console.log("fetch bounds failed", e);
+							return {yearmap: {}, bounds: {}};
+						})
+				}))).then(as=>{
+					if(as.length>1){
+						console.log("WARNING WARNING - missing data for bounds crossing the antimeridian contact fullergalway");
+					}
+					return as[0];
+				});
+		} else {
+			this.boundsPromise = Promise.all(this.indices.map(x => x.setBounds(latLngBounds))).then(promises => {
+				let results = {};
+				let bounds2 = {};
+				this.years.map(year => results[year] = []);
+				promises.map(a => {
+					let {yearmap,bounds} = a;
+					Object.keys(yearmap).forEach(year => {
+						yearmap[year].map(dataset_url => {
+							results[year].push(dataset_url)
+						})
+					});
+					bounds2 = { ...bounds2, ...bounds}
 				})
-			})
-			this.yearmap = results;
-			return results;
-		})
+				this.yearmap = results;
+				this.bounds = bounds2;
+				return results;
+			});
+		}
+		this.latLngBounds = latLngBounds;
+		return this.boundsPromise;
 	}
 
 	const ErddapClient = function(settings) {

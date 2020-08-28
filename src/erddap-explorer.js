@@ -183,7 +183,7 @@
         dataset.fetchMetadata().then(() => this.updateIOOSCategories());
         this.erddapClients.loadDatasetsIndex().then(datasetsIndex => {
             if (datasetsIndex) {
-                datasetsIndex.fetchBounds(dataset_url).then(bounds => {
+                datasetsIndex.getBounds(dataset_url).then(bounds => {
                     dataset.bounds.year = bounds;
                     if(dataset.bounds.overall === undefined){
                         let overall = undefined;
