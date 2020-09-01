@@ -138,6 +138,7 @@
             })
             this._trigger("datasetsIndexUpdated", this.datasetsIndex);
         };
+        this.iDataRequest = 0;
     }
 
     ErddapExplorer.prototype.setErddapClients = function(erddapClients) {
@@ -158,8 +159,13 @@
     ErddapExplorer.prototype.setBounds = function(bounds) {
         this.bounds = bounds;
         if (!this.datasetsIndex) return;
+        let iDataRequest = ++this.iDataRequest;
         let fn = ()=>{
-            this.datasetsIndex.setBounds(this.bounds).then(yearmap=>this.updateYearmap(yearmap))
+            this.datasetsIndex.setBounds(this.bounds).then(yearmap => {
+                if(iDataRequest === this.iDataRequest){
+                    this.updateYearmap(yearmap)
+                }
+            })
         }
         if(this.setBoundsTimeout != undefined){
             clearTimeout(this.setBoundsTimeout);
@@ -247,8 +253,14 @@
     ErddapExplorer.prototype.setElevations = function(elevations){
         this.requestedElevations = elevations;
         if (!this.datasetsIndex) return;
+        let iDataRequest = ++this.iDataRequest;
+
         let fn = ()=>{
-            this.datasetsIndex.setElevations(this.requestedElevations).then(yearmap=>this.updateYearmap(yearmap))
+            this.datasetsIndex.setElevations(this.requestedElevations).then(yearmap=>{
+                if(iDataRequest === this.iDataRequest){
+                    this.updateYearmap(yearmap);
+                }
+            })
         }
         if(this.setElevationsTimeout != undefined){
             clearTimeout(this.setElevationsTimeout);
