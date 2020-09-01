@@ -131,6 +131,13 @@
         this.years = [];
         this.bounds = undefined;
         this.selectedYear = undefined;
+        this.requestedElevations = undefined;
+        this.updateYearmap = yearmap => {
+            this.years.forEach(year => {
+                year.dataset_urls = yearmap[year.year];
+            })
+            this._trigger("datasetsIndexUpdated", this.datasetsIndex);
+        };
     }
 
     ErddapExplorer.prototype.setErddapClients = function(erddapClients) {
@@ -147,15 +154,17 @@
         }).catch()
     }
 
+
     ErddapExplorer.prototype.setBounds = function(bounds) {
         this.bounds = bounds;
         if (!this.datasetsIndex) return;
-        this.datasetsIndex.setBounds(bounds).then(yearmap => {
-            this.years.forEach(year => {
-                year.dataset_urls = yearmap[year.year];
-            })
-            this._trigger("datasetsIndexUpdated", this.datasetsIndex);
-        })
+        let fn = ()=>{
+            this.datasetsIndex.setBounds(this.bounds).then(yearmap=>this.updateYearmap(yearmap))
+        }
+        if(this.setBoundsTimeout != undefined){
+            clearTimeout(this.setBoundsTimeout);
+        }
+        this.setBoundsTimeout = setTimeout(fn,this.setBoundsTimeout?100:0);// right away first time otherwise debounce
     }
 
     ErddapExplorer.prototype.on = function(e, fn) {
@@ -233,6 +242,18 @@
         })
 
         return dataset;
+    }
+
+    ErddapExplorer.prototype.setElevations = function(elevations){
+        this.requestedElevations = elevations;
+        if (!this.datasetsIndex) return;
+        let fn = ()=>{
+            this.datasetsIndex.setElevations(this.requestedElevations).then(yearmap=>this.updateYearmap(yearmap))
+        }
+        if(this.setElevationsTimeout != undefined){
+            clearTimeout(this.setElevationsTimeout);
+        }
+        this.setElevationsTimeout = setTimeout(fn,100);
     }
 
     ErddapExplorer.prototype.getDataset = function(dataset_url) {

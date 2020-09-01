@@ -322,6 +322,13 @@
         let div2 = createElement("div", {
             class: "col-8 well"
         });
+        searchArea.appendChild(div2);
+
+        let rightColumn = createElement("div",{
+            class: "col-2"
+        });
+        searchArea.appendChild(rightColumn);
+
         let datasets = createElement("legend", {
             id: "datasets"
         });
@@ -342,9 +349,10 @@
         showSettingsLink.appendChild(i)
         datasets.appendChild(showSettingsLink)
         div2.appendChild(datasets)
-        let testConnections = document.createElement("div");
-        testConnections.setAttribute("id", "testConnections");
-        testConnections.setAttribute("style", "display: block");
+        let testConnections = document.createElement("div",{
+            id: "testConnections",
+            style: "display: block"
+        });
         div2.appendChild(testConnections)
         let searchForm = createElement("div", {
             id: "searchForm",
@@ -468,6 +476,66 @@
             }
             setTimeout(loadMap, 200);
 
+            { //elevation control
+                let elevationsControl = createElement("div",{
+                    style: "margin-top: 80px"
+                });
+                let elevationLabel0 = createElement("h5",{},"Elevation")
+                let elevationLabel1 = createElement("h5")
+                let elevationLabel2 = createElement("h5")
+                let sectionHolder = createElement("div")
+                let section = createElement("section", {
+                    class: "range-slider",
+                    style: "width: 200px; transform-origin: 100px 100px; transform: rotate(-90deg)"
+                });
+                let elevationsSlider1 = createElement("input", {
+                    type: "range",
+                    value: 0,
+                    max: 1000,
+                    class: "form-control-rangex",
+                    id: "elevationsSlider1"
+                });
+                let elevationsSlider2 = createElement("input", {
+                    type: "range",
+                    value: 1000,
+                    max: 1000,
+                    class: "form-control-rangex",
+                    id: "elevationsSlider2"
+                });
+                section.appendChild(elevationsSlider1);
+                section.appendChild(elevationsSlider2);
+                sectionHolder.appendChild(section);
+                sectionHolder.appendChild(createElement("div",{
+                    style: "height: 200px; z-index: -1"
+                }))
+                elevationsControl.appendChild(elevationLabel0);
+                elevationsControl.appendChild(elevationLabel2);
+                elevationsControl.appendChild(sectionHolder);
+                elevationsControl.appendChild(elevationLabel1);
+                rightColumn.appendChild(elevationsControl);
+
+                explorer.on("datasetsIndexLoaded", (datasetsIndex) => {
+                    elevationsSlider1.setAttribute("max", datasetsIndex.elevation.max);
+                    elevationsSlider2.setAttribute("max", datasetsIndex.elevation.max);
+                    elevationsSlider1.setAttribute("min", datasetsIndex.elevation.min);
+                    elevationsSlider2.setAttribute("min", datasetsIndex.elevation.min);
+                    elevationsSlider1.setAttribute("value", datasetsIndex.elevation.min);
+                    elevationLabel1.innerText = `${datasetsIndex.elevation.min}m`;
+                    elevationsSlider2.setAttribute("value", datasetsIndex.elevation.max);
+                    elevationLabel2.innerText = `${datasetsIndex.elevation.max}m`;
+                    let listener = () => {
+                        let elevations = [parseInt(elevationsSlider1.value), parseInt(elevationsSlider2.value)];
+                        elevations.sort((a,b)=>a-b);
+                        elevationLabel1.innerText = `${elevations[0]}m`;
+                        elevationLabel2.innerText = `${elevations[1]}m`;
+                        explorer.setElevations({min:elevations[0], max:elevations[1]});
+                    }
+                    elevationsSlider1.addEventListener("input", listener);
+                    elevationsSlider2.addEventListener("input", listener);
+                });
+
+            }
+
             {
                 let yearsControl = createElement("div", {
                     class: "row"
@@ -536,6 +604,8 @@
 
             }
 
+
+
         }
 
         let searchResultsContainer = createElement("div", {
@@ -568,7 +638,8 @@
         searchResultsContainer.appendChild(table);
 
         div2.appendChild(searchResultsContainer)
-        searchArea.appendChild(div2)
+
+
         div1.appendChild(searchArea)
         let configurationArea = document.createElement("div");
         configurationArea.setAttribute("class", "row");

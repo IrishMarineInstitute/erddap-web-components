@@ -212,6 +212,8 @@
 		this.bounds = {};
 		this.boundsPromise = undefined;
 		this.latLngBounds = false;
+		this.elevation = {min: -11000, max: 8848}
+		this.requestedElevations = undefined;
 	}
 
 	DatasetsIndex.prototype.load = function() {
@@ -219,7 +221,18 @@
 			throw ("Cannot call load on DatasetsIndex not created with an ErddapCliuent")
 		}
 		let index = this.erddapClient.getDataset("datasetsIndex");
-		return index.fetchData("year&distinct()").then(data => {
+		return index.fetchMetadata().then(metadata=>{
+			try{
+				let v = metadata.info.attribute.elevation.actual_range.value.split(/,\s*/);
+				this.elevation.min = parseInt(v[0]);
+				this.elevation.max = parseInt(v[1]);
+			}catch(e){
+				console.log("problem fetching elevation from metadata",e)
+			}
+
+		})
+		.then(()=>index.fetchData("year&distinct()"))
+		.then(data => {
 			this.years = data.map(r => r.year);
 			return this.erddapClient.getDataset("allDatasets").fetchData("metadata").then(data => {
 				this.erddapClientMap = data.reduce((v, o) => {
@@ -228,10 +241,12 @@
 				}, {});
 				return this;
 			})
-		}).then(() => index.fetchData("dataset_id").then(data => {
+		})
+		.then(() => index.fetchData("dataset_id").then(data => {
 			this.dataset_ids = data.map(r => r.year);
 			return this;
-		}).then(() =>
+		})
+		.then(() =>
 			this.setBounds().then(() => this)
 		));
 
@@ -251,6 +266,8 @@
 			...datasetIndex.erddapClientMap
 		};
 		this.dataset_ids = this.dataset_ids.concat(datasetIndex.dataset_ids);
+		this.elevation.min = Math.min(this.elevation.min,datasetIndex.elevation.min);
+		this.elevation.max = Math.max(this.elevation.max,datasetIndex.elevation.max);
 	}
 
 
@@ -287,6 +304,26 @@
 		return this.setBounds(this.latLngBounds).then(x=>this.bounds[dataset_url] || {});
 	}
 
+
+	DatasetsIndex.prototype.setElevations = function(elevations) {
+		if (this.erddapClient) {
+				if (elevations && elevations.min <= this.elevation.min && elevations.max >= this.elevation.max) {
+					elevations = undefined;
+				}
+				if (this.requestedElevations !== elevations) {
+					this.requestedElevations = elevations;
+					this.boundsPromise = undefined;
+				}
+		}else{
+			if (this.requestedElevations !== elevations) {
+				this.requestedElevations = elevations;
+				this.boundsPromise = undefined;
+				this.indices.map(x => x.setElevations(elevations))
+			}
+		}
+		return this.setBounds(this.latLngBounds);
+	}
+
 	DatasetsIndex.prototype.setBounds = function(latLngBounds) {
 		if (this.boundsPromise && (latLngBounds === this.latLngBounds) ||
 			(latLngBounds && latLngBounds.equals &&
@@ -295,9 +332,14 @@
 			return this.boundsPromise;
 		}
 		if (this.erddapClient) {
+			let elevationsDap = "";
+			if(this.requestedElevations){
+				let e = this.requestedElevations;
+				elevationsDap = `&elevation>=${e.min}&elevation<=${e.max}`;
+			}
 			this.boundsPromise = Promise.all(boundsToDap(latLngBounds).map(dap =>
 				this.erddapClient.getDataset("datasetsIndex")
-				.fetchData(`dataset_id,year,latitude${dap}&orderByMinMax("dataset_id,year,latitude")`)
+				.fetchData(`dataset_id,year,latitude${dap}${elevationsDap}&orderByMinMax("dataset_id,year,latitude")`)
 				.then(data => {
 					let yearmap = {};
 					let bounds = {};
@@ -314,7 +356,7 @@
 						};
 					}
 					return this.erddapClient.getDataset("datasetsIndex")
-						.fetchData(`dataset_id,year,longitude${dap}&orderByMinMax("dataset_id,year,longitude")`)
+						.fetchData(`dataset_id,year,longitude${dap}${elevationsDap}&orderByMinMax("dataset_id,year,longitude")`)
 						.then(data => {
 							for (let i = 0; i < data.length; i += 2) {
 								let dataset_url = this.erddapClient.getDataset(data[i].dataset_id).datasetUrl() + "/index.json";
@@ -761,6 +803,7 @@
 			);
 			this.datasetsIndexPromise = Promise.all(promises).then((indices) => {
 				let datasetsIndex = new DatasetsIndex();
+				datasetsIndex.elevation = {min:8000,max:-8000};
 				for (let i = 0; i < indices.length; i++) {
 					if (!indices[i]) {
 						return null;
