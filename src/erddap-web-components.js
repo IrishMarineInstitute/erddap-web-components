@@ -1558,6 +1558,9 @@
                     ioosCategorySelect.sticky = true;
                     ioosCategorySelect.style.display = Object.keys(categories).length ? "block" : "none";
                 });
+                this.explorer.on("searching",()=>{
+                    this.elements.searchResultsLabel.innerText = "Updating...";
+                })
                 this.explorer.on("datasetsIndexUpdated", (datasetsIndex) => {
                     this.filterDatasetResults();
                 });

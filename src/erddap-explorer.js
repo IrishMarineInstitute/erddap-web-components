@@ -122,7 +122,8 @@
             categoriesChanged: [],
             datasetsIndexLoaded: [],
             datasetsIndexUpdated: [],
-            selectedYearsChanged: []
+            selectedYearsChanged: [],
+            searching: []
         };
         this.timeouts = {};
         this.app_data = {};
@@ -159,6 +160,7 @@
     ErddapExplorer.prototype.setBounds = function(bounds) {
         this.bounds = bounds;
         if (!this.datasetsIndex) return;
+        this._trigger("searching")
         let iDataRequest = ++this.iDataRequest;
         let fn = ()=>{
             this.datasetsIndex.setBounds(this.bounds).then(yearmap => {
@@ -193,6 +195,7 @@
         if (this.datasets[dataset_url]) {
             return this.datasets[dataset_url];
         }
+        this._trigger("searching")
         let dataset = new ExplorerDataset(dataset_url);
         this.datasets[dataset_url] = dataset;
         dataset.fetchMetadata().then(() => this.updateIOOSCategories());
@@ -253,6 +256,7 @@
     ErddapExplorer.prototype.setElevations = function(elevations){
         this.requestedElevations = elevations;
         if (!this.datasetsIndex) return;
+        this._trigger("searching")
         let iDataRequest = ++this.iDataRequest;
 
         let fn = ()=>{
