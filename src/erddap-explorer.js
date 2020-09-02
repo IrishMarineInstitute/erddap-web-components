@@ -25,7 +25,8 @@
         this.name = name;
         this.type = type;
         this.state = 0;
-        this.value = `${name} (${type})`;
+        //this.value = `${name} (${type})`;
+        this.value = name.toLowerCase();
         this.dataset_urls = [];
     }
     const IOOSCategory = function(category) {
@@ -310,7 +311,8 @@
                         variable = new Variable(variableName, variableDataType);
                     } else if (attributeName === 'ioos_category') {
                         let category = ioos_categories[value] = ioos_categories[value] || new IOOSCategory(value);
-                        let varkey = `${value}:${variableName}:${variableDataType}`;
+                        //let varkey = `${value}:${variableName}:${variableDataType}`;
+                        let varkey = `${value}:${variableName}`.toLowerCase();
                         variable = category_variables[varkey] = category_variables[varkey] || variable;
                         category.addVariable(variable);
                         if ((category.dataset_urls).indexOf(dataset_url) < 0) category.dataset_urls.push(dataset_url);
