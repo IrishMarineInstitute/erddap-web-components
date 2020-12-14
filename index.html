@@ -6,12 +6,18 @@
     <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.8.2/css/all.css" crossorigin="anonymous">
     <script src="src/erddap-client.js"></script>
     <script src="src/erddap-web-components.js"></script>
+   <!-- include next line for multiserver search, requires datasets index 
+        see: https://github.com/IrishMarineInstitute/erddap-datasets-index
     <script src="src/erddap-explorer.js"></script>
+   -->
   </head>
   <body>
         <h1>ERDDAP Web Components</h1>
         <erddap-multi-server-search>
+            <option value="https://erddap.marine.ie/erddap">Marine Institute Erddap</option>
+           <!--
             <option value="http://10.11.1.82/erddap">Marine Institute Erddap</option>
+            -->
         </erddap-multi-server-search>
   </body>
 </html>
